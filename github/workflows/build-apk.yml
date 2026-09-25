@@ -1,0 +1,31 @@
+name: Build Muwahid APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Extract project
+        run: unzip -q Muwahid_Android_GitHub_APK.zip
+      - name: Build APK
+        run: cd Muwahid && gradle --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Muwahid-APK
+          path: Muwahid/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
