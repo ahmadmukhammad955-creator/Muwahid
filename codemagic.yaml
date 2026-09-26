@@ -1,0 +1,18 @@
+workflows:
+  android-debug:
+    name: Muwahid 0.1.1 APK
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      java: 17
+    scripts:
+      - name: Install Gradle 8.7
+        script: |
+          curl --fail --location --retry 3 https://services.gradle.org/distributions/gradle-8.7-bin.zip -o /tmp/muwahid-gradle.zip
+          unzip -q -o /tmp/muwahid-gradle.zip -d /tmp/muwahid-gradle
+      - name: Extract corrected project
+        script: unzip -q Muwahid_Android_GitHub_APK.zip
+      - name: Build debug APK from corrected sources
+        script: cd Muwahid && /tmp/muwahid-gradle/gradle-8.7/bin/gradle --no-daemon assembleDebug
+    artifacts:
+      - Muwahid/app/build/outputs/apk/debug/app-debug.apk
