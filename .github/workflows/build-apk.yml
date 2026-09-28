@@ -19,7 +19,7 @@ jobs:
         with:
           gradle-version: '8.7'
       - name: Extract project
-        run: unzip -q Muwahid_Android_GitHub_APK.zip
+        run: Muwahid_Android_GitHub_APK_0.5_READY_TO_REPLACE.zip
       - name: Build APK and device checks
         run: cd Muwahid && gradle --no-daemon assembleDebug assembleDebugAndroidTest
       - uses: actions/upload-artifact@v4
