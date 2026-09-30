@@ -19,7 +19,7 @@ jobs:
         with:
           gradle-version: '8.7'
       - name: Extract project
-        run: unzip -q Muwahid_0.9.2_CHAT_SCREEN_SOURCE.zip
+        run: unzip -q Muwahid_0.9.2_CHAT_SCREEN_SOURCE_FIXED.zip
       - name: Build APK and device checks
         run: cd Muwahid && gradle --no-daemon assembleDebug assembleDebugAndroidTest
       - uses: actions/upload-artifact@v4
