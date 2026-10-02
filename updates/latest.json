@@ -2,6 +2,6 @@
   "versionCode": 28,
   "versionName": "0.12.4",
   "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.12.4/Muwahid-0.12.4.apk",
-  "sha256": "e8df7c41a17a266c992b457b7e61dfa2779a94f5466f685b397b298924cb2fd8",
-  "notes": "Доступна новая версия Muwahid. Обновление устанавливается поверх текущего приложения без удаления данных."
+  "sha256": "e22f31661b12a6404917cfdf6d5ed3062f3edebfd6f06afe76fe75671d7f7377",
+  "notes": "Обновление безопасности Muwahid. Release-сборка, усиленная защита WebView и серверных прав."
 }
