@@ -1,7 +1,7 @@
 {
-  "versionCode": 27,
-  "versionName": "0.12.3",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.12.3/Muwahid-0.12.3.apk",
-  "sha256": "1caee24607d6926a35fe4d2c4236f8e59aee586150635fc96c6d7184fc895681",
+  "versionCode": 28,
+  "versionName": "0.12.4",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.12.4/Muwahid-0.12.4.apk",
+  "sha256": "e8df7c41a17a266c992b457b7e61dfa2779a94f5466f685b397b298924cb2fd8",
   "notes": "Доступна новая версия Muwahid. Обновление устанавливается поверх текущего приложения без удаления данных."
 }
