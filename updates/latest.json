@@ -1,7 +1,7 @@
 {
-  "versionCode": 31,
-  "versionName": "0.12.7",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.12.7/Muwahid-0.12.7.apk",
-  "sha256": "c43741697e66f72b1231d2acc30fba7010186081923486baa219bc47ca435286",
+  "versionCode": 32,
+  "versionName": "0.12.8",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.12.8/Muwahid-0.12.8.apk",
+  "sha256": "b5c77c70aff0fd70f4ea17eedc085fa67512c608694cb48d514255971d479859",
   "notes": "Обновление безопасности Muwahid. Release-сборка, усиленная защита WebView и серверных прав."
 }
