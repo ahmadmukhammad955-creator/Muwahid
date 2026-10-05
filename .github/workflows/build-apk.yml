@@ -20,12 +20,12 @@ jobs:
           gradle-version: '8.7'
       - name: Extract project
         run: |
-          unzip -q Muwahid_0.12.9_PRIVACY_PROJECT.zip
-          grep -Fq "versionCode 33" Muwahid/app/build.gradle
-          grep -Fq "versionName '0.12.9'" Muwahid/app/build.gradle
+          unzip -q Muwahid_0.13.1_PROJECT.zip
+          grep -Fq "versionCode 35" Muwahid/app/build.gradle
+          grep -Fq "versionName '0.13.1'" Muwahid/app/build.gradle
           cd Muwahid
           bash VERIFY_PROJECT.sh
-          echo "Building Muwahid 0.12.9 (33) with privacy controls"
+          echo "Building Muwahid 0.13.1 (35) with privacy controls"
       - name: Prepare stable signing
         env:
           MUWAHID_KEYSTORE_B64: ${{ secrets.MUWAHID_KEYSTORE_B64 }}
