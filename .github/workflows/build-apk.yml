@@ -19,7 +19,15 @@ jobs:
         with:
           gradle-version: '8.7'
       - name: Extract project
-        run: unzip -q Muwahid_PROJECT.zip
+        run: |
+          unzip -q Muwahid_0.12.8_PROFILE_PROJECT.zip
+          grep -Fq "versionCode 32" Muwahid/app/build.gradle
+          grep -Fq "versionName '0.12.8'" Muwahid/app/build.gradle
+          # Align stale test expectations with the verified version and Profile tab.
+          sed -i 's/0[.]12[.]7/0.12.8/g; s/"Звонки"/"Профиль"/g; s/Missing calls navigation/Missing profile navigation/g' Muwahid/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java
+          cd Muwahid
+          bash VERIFY_PROJECT.sh
+          echo "Building Muwahid 0.12.8 (32) from profile project"
       - name: Prepare stable signing
         env:
           MUWAHID_KEYSTORE_B64: ${{ secrets.MUWAHID_KEYSTORE_B64 }}
