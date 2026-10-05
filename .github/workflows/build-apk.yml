@@ -20,14 +20,12 @@ jobs:
           gradle-version: '8.7'
       - name: Extract project
         run: |
-          unzip -q Muwahid_0.12.8_PROFILE_PROJECT.zip
-          grep -Fq "versionCode 32" Muwahid/app/build.gradle
-          grep -Fq "versionName '0.12.8'" Muwahid/app/build.gradle
-          # Align stale test expectations with the verified version and Profile tab.
-          sed -i 's/0[.]12[.]7/0.12.8/g; s/"Звонки"/"Профиль"/g; s/Missing calls navigation/Missing profile navigation/g' Muwahid/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java
+          unzip -q Muwahid_0.12.9_PRIVACY_PROJECT.zip
+          grep -Fq "versionCode 33" Muwahid/app/build.gradle
+          grep -Fq "versionName '0.12.9'" Muwahid/app/build.gradle
           cd Muwahid
           bash VERIFY_PROJECT.sh
-          echo "Building Muwahid 0.12.8 (32) from profile project"
+          echo "Building Muwahid 0.12.9 (33) with privacy controls"
       - name: Prepare stable signing
         env:
           MUWAHID_KEYSTORE_B64: ${{ secrets.MUWAHID_KEYSTORE_B64 }}
@@ -109,7 +107,7 @@ jobs:
             "versionName": "${VERSION_NAME}",
             "apkUrl": "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}",
             "sha256": "${SHA256}",
-            "notes": "Обновление безопасности Muwahid. Release-сборка, усиленная защита WebView и серверных прав."
+            "notes": "Конфиденциальность: чёрный список, правила сообщений и звонков, поиск по номеру, доверенные контакты, код блокировки Android и список сеансов."
           }
           JSON
           git config user.name "github-actions[bot]"
