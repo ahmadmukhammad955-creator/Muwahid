@@ -76,8 +76,9 @@ jobs:
             adb install Muwahid/app/build/outputs/apk/debug/app-debug.apk
             adb install Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation | tee smoke-result.txt
+            adb logcat -d -s AndroidRuntime:E | tee crash-log.txt
+            adb pull /sdcard/Android/data/com.muwahid.app/files/ screenshots || true
             grep 'MW_SMOKE_OK' smoke-result.txt
-            adb pull /sdcard/Android/data/com.muwahid.app/files/ screenshots
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -85,6 +86,7 @@ jobs:
           path: |
             screenshots/
             smoke-result.txt
+            crash-log.txt
       - name: Publish signed in-place update
         if: ${{ success() && env.MUWAHID_STABLE_SIGNING == 'true' }}
         env:
