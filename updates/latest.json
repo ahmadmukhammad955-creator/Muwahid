@@ -1,7 +1,7 @@
 {
-  "versionCode": 37,
-  "versionName": "0.13.3",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.3/Muwahid-0.13.3.apk",
-  "sha256": "d57d96840f7edce85ef7f056ebe8a67bd29da47d8b5ceeaba1020de5e80d751c",
-  "notes": "Живые стикеры: анимация в наборах, предпросмотре и переписке. Кот машет лапой, сердечки пульсируют, персонажи моргают. Для анимации у обоих участников нужна версия 0.13.3."
+  "versionCode": 38,
+  "versionName": "0.13.4",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.4/Muwahid-0.13.4.apk",
+  "sha256": "04f4d329ae0e1969c8402f39cf741bcf7af5c72e206da48bfed8df5e3447c35e",
+  "notes": "Новый интерфейс чата, фото и видео, камера, документы, местоположение и обновленный экран звонков."
 }
