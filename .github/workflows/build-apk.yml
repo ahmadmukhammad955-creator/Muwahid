@@ -1,3 +1,4 @@
+
 name: Build Muwahid APK
 on:
   workflow_dispatch:
@@ -20,12 +21,12 @@ jobs:
           gradle-version: '8.7'
       - name: Extract project
         run: |
-          unzip -q Muwahid_0.13.3_PROJECT.zip
-          grep -Fq "versionCode 37" Muwahid/app/build.gradle
-          grep -Fq "versionName '0.13.3'" Muwahid/app/build.gradle
+          unzip -q Muwahid_0.13.4_PROJECT.zip
+          grep -Fq "versionCode 38" Muwahid/app/build.gradle
+          grep -Fq "versionName '0.13.4'" Muwahid/app/build.gradle
           cd Muwahid
           bash VERIFY_PROJECT.sh
-          echo "Building Muwahid 0.13.3 (37) with privacy controls"
+          echo "Building Muwahid 0.13.4 (38) with redesigned chat and calls"
       - name: Prepare stable signing
         env:
           MUWAHID_KEYSTORE_B64: ${{ secrets.MUWAHID_KEYSTORE_B64 }}
@@ -50,72 +51,3 @@ jobs:
         run: cd Muwahid && gradle --no-daemon assembleRelease
       - uses: actions/upload-artifact@v4
         if: ${{ env.MUWAHID_STABLE_SIGNING == 'true' }}
-        with:
-          name: Muwahid-APK
-          path: Muwahid/app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: ${{ env.MUWAHID_STABLE_SIGNING != 'true' }}
-        with:
-          name: Muwahid-TEST-APK-NOT-FOR-UPDATE
-          path: Muwahid/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Check notes and navigation on Android
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          arch: x86_64
-          profile: pixel_2
-          disable-animations: true
-          script: |
-            adb install Muwahid/app/build/outputs/apk/debug/app-debug.apk
-            adb install Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation | tee smoke-result.txt
-            adb logcat -d -s AndroidRuntime:E | tee crash-log.txt
-            adb pull /sdcard/Android/data/com.muwahid.app/files/ screenshots || true
-            grep 'MW_SMOKE_OK' smoke-result.txt
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: Muwahid-device-check
-          path: |
-            screenshots/
-            smoke-result.txt
-            crash-log.txt
-      - name: Publish signed in-place update
-        if: ${{ success() && env.MUWAHID_STABLE_SIGNING == 'true' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          VERSION_NAME=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" Muwahid/app/build.gradle | head -1)
-          VERSION_CODE=$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' Muwahid/app/build.gradle | head -1)
-          APK="$GITHUB_WORKSPACE/Muwahid/app/build/outputs/apk/release/app-release.apk"
-          ASSET="Muwahid-${VERSION_NAME}.apk"
-          RELEASE_APK="$GITHUB_WORKSPACE/$ASSET"
-          cp "$APK" "$RELEASE_APK"
-          SHA256=$(sha256sum "$RELEASE_APK" | awk '{print $1}')
-          TAG="v${VERSION_NAME}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${VERSION_NAME}" --notes "Muwahid Android ${VERSION_NAME} — hardened release build"
-          gh release upload "$TAG" "$RELEASE_APK" --clobber
-          mkdir -p updates
-          cat > updates/latest.json <<JSON
-          {
-            "versionCode": ${VERSION_CODE},
-            "versionName": "${VERSION_NAME}",
-            "apkUrl": "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}",
-            "sha256": "${SHA256}",
-            "notes": "Живые стикеры: анимация в наборах, предпросмотре и переписке. Кот машет лапой, сердечки пульсируют, персонажи моргают. Для анимации у обоих участников нужна версия 0.13.3."
-          }
-          JSON
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add updates/latest.json
-          if ! git diff --cached --quiet; then
-            git commit -m "Publish Muwahid ${VERSION_NAME} security update [skip ci]"
-            git push
-          fi
