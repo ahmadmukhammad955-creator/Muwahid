@@ -2,6 +2,6 @@
   "versionCode": 40,
   "versionName": "0.13.6",
   "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.6/Muwahid-0.13.6.apk",
-  "sha256": "5eeba63ff98ebe2098090e7a6ac31d3b47f0245fac1c70597efb0321dbdc3dca",
-  "notes": "Новый интерфейс чата, фото и видео, камера, документы, местоположение и обновленный экран звонков."
+  "sha256": "2af06c9b0ff54ead583f910f515341c359d14a910ddc90f86f4d20116b3a8280",
+  "notes": "Исправлена ошибка сессии HTTP 400; проверены чат, аудио/видеозвонки, вложения и камера."
 }
