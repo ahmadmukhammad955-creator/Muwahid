@@ -20,12 +20,12 @@ jobs:
           gradle-version: '8.7'
       - name: Extract project
         run: |
-          unzip -q Muwahid_0.13.2_PROJECT.zip
-          grep -Fq "versionCode 36" Muwahid/app/build.gradle
-          grep -Fq "versionName '0.13.2'" Muwahid/app/build.gradle
+          unzip -q Muwahid_0.13.3_PROJECT.zip
+          grep -Fq "versionCode 37" Muwahid/app/build.gradle
+          grep -Fq "versionName '0.13.3'" Muwahid/app/build.gradle
           cd Muwahid
           bash VERIFY_PROJECT.sh
-          echo "Building Muwahid 0.13.2 (36) with privacy controls"
+          echo "Building Muwahid 0.13.3 (37) with privacy controls"
       - name: Prepare stable signing
         env:
           MUWAHID_KEYSTORE_B64: ${{ secrets.MUWAHID_KEYSTORE_B64 }}
@@ -109,7 +109,7 @@ jobs:
             "versionName": "${VERSION_NAME}",
             "apkUrl": "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}",
             "sha256": "${SHA256}",
-            "notes": "Стикеры: два набора, 12 прозрачных изображений, отправка в защищённом чате, предпросмотр и недавние стикеры. Настройки конфиденциальности сохранены."
+            "notes": "Живые стикеры: анимация в наборах, предпросмотре и переписке. Кот машет лапой, сердечки пульсируют, персонажи моргают. Для анимации у обоих участников нужна версия 0.13.3."
           }
           JSON
           git config user.name "github-actions[bot]"
