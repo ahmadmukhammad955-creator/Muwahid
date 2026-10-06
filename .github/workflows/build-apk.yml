@@ -12,19 +12,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-
       - name: Extract project
         run: |
           unzip -q Muwahid_0.13.4_PROJECT.zip
@@ -33,7 +29,6 @@ jobs:
           cd Muwahid
           bash VERIFY_PROJECT.sh
           echo "Building Muwahid 0.13.4 (38)"
-
       - name: Prepare stable signing
         env:
           MUWAHID_KEYSTORE_B64: ${{ secrets.MUWAHID_KEYSTORE_B64 }}
@@ -41,23 +36,20 @@ jobs:
         run: |
           if [ -n "$MUWAHID_KEYSTORE_B64" ] && [ -n "$MUWAHID_KEYSTORE_PASSWORD" ]; then
             printf '%s' "$MUWAHID_KEYSTORE_B64" | base64 --decode > Muwahid/muwahid-release.jks
-            keytool -list               -keystore Muwahid/muwahid-release.jks               -storepass "$MUWAHID_KEYSTORE_PASSWORD"               -alias muwahid >/dev/null
+            keytool -list -keystore Muwahid/muwahid-release.jks -storepass "$MUWAHID_KEYSTORE_PASSWORD" -alias muwahid >/dev/null
             echo "MUWAHID_STABLE_SIGNING=true" >> "$GITHUB_ENV"
           else
             echo "MUWAHID_STABLE_SIGNING=false" >> "$GITHUB_ENV"
           fi
-
       - name: Build debug APK
         env:
           MUWAHID_KEYSTORE_PASSWORD: ${{ secrets.MUWAHID_KEYSTORE_PASSWORD }}
         run: cd Muwahid && gradle --no-daemon assembleDebug
-
       - name: Build signed release APK
         if: ${{ env.MUWAHID_STABLE_SIGNING == 'true' }}
         env:
           MUWAHID_KEYSTORE_PASSWORD: ${{ secrets.MUWAHID_KEYSTORE_PASSWORD }}
         run: cd Muwahid && gradle --no-daemon assembleRelease
-
       - name: Upload signed APK
         if: ${{ env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
@@ -65,7 +57,6 @@ jobs:
           name: Muwahid-APK
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-
       - name: Upload test APK
         if: ${{ env.MUWAHID_STABLE_SIGNING != 'true' }}
         uses: actions/upload-artifact@v4
@@ -73,13 +64,40 @@ jobs:
           name: Muwahid-TEST-APK-NOT-FOR-UPDATE
           path: Muwahid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-
+      - name: Prepare Android check script
+        shell: bash
+        run: |
+          cat > "$GITHUB_WORKSPACE/muwahid-device-check.sh" <<'MW_DEVICE_CHECK'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          collect_diagnostics() {
+            adb logcat -d -s AndroidRuntime:E > crash-log.txt 2>&1 || true
+            adb exec-out screencap -p > app-screen.png 2>/dev/null || true
+          }
+          trap collect_diagnostics EXIT
+          printf '%s\n' 'MW_SMOKE_FAILED: device check did not complete.' > smoke-result.txt
+          adb install -r Muwahid/app/build/outputs/apk/debug/app-debug.apk
+          adb logcat -c
+          adb shell monkey -p com.muwahid.app -c android.intent.category.LAUNCHER 1
+          sleep 5
+          PID="$(adb shell pidof com.muwahid.app | tr -d '\r' || true)"
+          if [ -z "$PID" ]; then
+            echo 'MW_SMOKE_FAILED: app stopped after launch.' | tee smoke-result.txt
+            exit 1
+          fi
+          adb logcat -d -s AndroidRuntime:E | tee crash-log.txt
+          if grep -q 'FATAL EXCEPTION' crash-log.txt; then
+            echo 'MW_SMOKE_FAILED: fatal Android crash detected.' | tee smoke-result.txt
+            exit 1
+          fi
+          echo 'MW_SMOKE_OK: Muwahid 0.13.4 installed and launched.' | tee smoke-result.txt
+          MW_DEVICE_CHECK
       - name: Check Muwahid 0.13.4 on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -87,28 +105,7 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: 'true'
-          script: |
-            adb install -r Muwahid/app/build/outputs/apk/debug/app-debug.apk
-            adb logcat -c
-
-            adb shell monkey -p com.muwahid.app -c android.intent.category.LAUNCHER 1
-            sleep 5
-
-            PID="$(adb shell pidof com.muwahid.app | tr -d '\r')"
-            if [ -z "$PID" ]; then
-              echo "Muwahid did not stay running after launch."
-              exit 1
-            fi
-
-            adb logcat -d -s AndroidRuntime:E | tee crash-log.txt
-            if grep -q "FATAL EXCEPTION" crash-log.txt; then
-              echo "Fatal Android crash detected."
-              exit 1
-            fi
-
-            echo "MW_SMOKE_OK: Muwahid 0.13.4 installed, launched and stayed alive." | tee smoke-result.txt
-            adb exec-out screencap -p > app-screen.png || true
-
+          script: bash "$GITHUB_WORKSPACE/muwahid-device-check.sh"
       - name: Upload device check
         if: always()
         uses: actions/upload-artifact@v4
@@ -119,7 +116,6 @@ jobs:
             smoke-result.txt
             crash-log.txt
           if-no-files-found: warn
-
       - name: Publish signed update
         if: ${{ success() && env.MUWAHID_STABLE_SIGNING == 'true' }}
         env:
@@ -127,26 +123,19 @@ jobs:
         run: |
           VERSION_NAME=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" Muwahid/app/build.gradle | head -1)
           VERSION_CODE=$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' Muwahid/app/build.gradle | head -1)
-
           APK="$GITHUB_WORKSPACE/Muwahid/app/build/outputs/apk/release/app-release.apk"
           ASSET="Muwahid-${VERSION_NAME}.apk"
           RELEASE_APK="$GITHUB_WORKSPACE/$ASSET"
           cp "$APK" "$RELEASE_APK"
-
           SHA256=$(sha256sum "$RELEASE_APK" | awk '{print $1}')
           TAG="v${VERSION_NAME}"
-
-          gh release view "$TAG" >/dev/null 2>&1 ||             gh release create "$TAG"               --title "Muwahid ${VERSION_NAME}"               --notes "Muwahid Android ${VERSION_NAME} — redesigned chat, attachments and calls"
-
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${VERSION_NAME}" --notes "Muwahid Android ${VERSION_NAME} — redesigned chat, attachments and calls"
           gh release upload "$TAG" "$RELEASE_APK" --clobber
-
           mkdir -p updates
-          cat > updates/latest.json <<JSON { "versionCode": ${VERSION_CODE}, "versionName": "${VERSION_NAME}", "apkUrl": "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}", "sha256": "${SHA256}", "notes": "Новый интерфейс чата, фото и видео, камера, документы, местоположение и обновленный экран звонков." } JSON
-
+          jq -n --argjson versionCode "$VERSION_CODE" --arg versionName "$VERSION_NAME" --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" --arg sha256 "$SHA256" --arg notes "Новый интерфейс чата, фото и видео, камера, документы, местоположение и обновленный экран звонков." '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add updates/latest.json
-
           if ! git diff --cached --quiet; then
             git commit -m "Publish Muwahid ${VERSION_NAME} update [skip ci]"
             git push
