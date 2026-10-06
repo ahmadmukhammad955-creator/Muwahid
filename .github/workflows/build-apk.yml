@@ -23,12 +23,12 @@ jobs:
           gradle-version: '8.7'
       - name: Extract project
         run: |
-          unzip -q Muwahid_0.13.4_PROJECT.zip
-          grep -Fq "versionCode 38" Muwahid/app/build.gradle
-          grep -Fq "versionName '0.13.4'" Muwahid/app/build.gradle
+          unzip -q Muwahid_0.13.6_PROJECT.zip
+          grep -Fq "versionCode 40" Muwahid/app/build.gradle
+          grep -Fq "versionName '0.13.6'" Muwahid/app/build.gradle
           cd Muwahid
           bash VERIFY_PROJECT.sh
-          echo "Building Muwahid 0.13.4 (38)"
+          echo "Building Muwahid 0.13.6 (40)"
       - name: Prepare stable signing
         env:
           MUWAHID_KEYSTORE_B64: ${{ secrets.MUWAHID_KEYSTORE_B64 }}
@@ -96,9 +96,9 @@ jobs:
             echo 'MW_SMOKE_FAILED: fatal Android crash detected.' | tee smoke-result.txt
             exit 1
           fi
-          echo 'MW_SMOKE_OK: Muwahid 0.13.4 installed and launched.' | tee smoke-result.txt
+          echo 'MW_SMOKE_OK: Muwahid 0.13.6 installed and launched.' | tee smoke-result.txt
           MW_DEVICE_CHECK
-      - name: Check Muwahid 0.13.4 on Android
+      - name: Check Muwahid 0.13.6 on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
