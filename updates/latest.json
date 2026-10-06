@@ -1,7 +1,7 @@
 {
-  "versionCode": 33,
-  "versionName": "0.12.9",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.12.9/Muwahid-0.12.9.apk",
-  "sha256": "de3a04dcb12632f3d8ae0ca3f9d03674ae7c15663094714ca52886cb9e490abf",
+  "versionCode": 35,
+  "versionName": "0.13.1",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.1/Muwahid-0.13.1.apk",
+  "sha256": "bb4aa96d228fcac5fe0e38835bd95837006baa840407a4104898a26269d9c816",
   "notes": "Конфиденциальность: чёрный список, правила сообщений и звонков, поиск по номеру, доверенные контакты, код блокировки Android и список сеансов."
 }
