@@ -97,10 +97,11 @@ jobs:
           profile: pixel_2
           disable-animations: 'true'
           script: |
-            set -euo pipefail
+            set -eu
             adb install -r Muwahid/app/build/outputs/apk/debug/app-debug.apk
             adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation | tee smoke-result.txt
+            adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > smoke-result.txt
+            cat smoke-result.txt
             grep -F "MW_SMOKE_OK: ${EXPECTED_VERSION_NAME}" smoke-result.txt
             mkdir -p screenshots
             adb pull /sdcard/Android/data/com.muwahid.app/files/. screenshots/ || true
