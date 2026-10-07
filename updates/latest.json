@@ -2,6 +2,6 @@
   "versionCode": 40,
   "versionName": "0.13.6",
   "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.6/Muwahid-0.13.6.apk",
-  "sha256": "513d40653b6ee8750a6c114c39f554be5e613391a1c45119b4bd5d35c92e036b",
+  "sha256": "d5a29d880f728bb59e02abc550eaf181d6c5e4934608c31d54bfb7e36a95d1fe",
   "notes": "Исправлена ошибка сессии HTTP 400; проверены чат, аудио/видеозвонки, вложения и камера."
 }
