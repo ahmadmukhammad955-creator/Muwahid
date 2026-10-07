@@ -1,7 +1,7 @@
 {
-  "versionCode": 41,
-  "versionName": "0.13.7",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.7/Muwahid-0.13.7.apk",
-  "sha256": "282246c7ae7ac2756931db29d8979eb3524c1708751bb1607cde5aea1d22da4d",
+  "versionCode": 42,
+  "versionName": "0.13.8",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.8/Muwahid-0.13.8.apk",
+  "sha256": "a994b28e1f5db275745e30b5d87f3a0fa1abf71131a0e58c2e936ae9cf5e77f7",
   "notes": "Новый интерфейс чатов, камера фото/видео, местоположение, документы, контакты, опросы, голосовые сообщения и экраны звонков."
 }
