@@ -18,18 +18,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - name: Extract and verify Muwahid 0.13.6
+      - name: Extract and verify Muwahid 0.13.7
         shell: bash
         run: |
           set -euo pipefail
           rm -rf Muwahid
-          unzip -q Muwahid_0.13.6_PROJECT.zip
-          grep -Fq "versionCode 40" Muwahid/app/build.gradle
-          grep -Fq "versionName '0.13.6'" Muwahid/app/build.gradle
-          grep -Fq 'private static final Object SESSION_REFRESH_LOCK' Muwahid/app/src/main/java/com/muwahid/app/Api.java
+          unzip -q Muwahid_0.13.7_PROJECT.zip
+          grep -Fq "versionCode 41" Muwahid/app/build.gradle
+          grep -Fq "versionName '0.13.7'" Muwahid/app/build.gradle
           grep -Fq 'private void showAttachmentSheet()' Muwahid/app/src/main/java/com/muwahid/app/MainActivity.java
           grep -Fq 'Аудиозвонок' Muwahid/app/src/main/java/com/muwahid/app/MainActivity.java
           grep -Fq 'Видеозвонок' Muwahid/app/src/main/java/com/muwahid/app/MainActivity.java
+          grep -Fq 'MuwahidCameraActivity' Muwahid/app/src/main/AndroidManifest.xml
+          grep -Fq 'LocationShareActivity' Muwahid/app/src/main/AndroidManifest.xml
+          grep -Fq 'MuwahidDocumentActivity' Muwahid/app/src/main/AndroidManifest.xml
+          grep -Fq '"Все","Личные","Группы","Каналы"' Muwahid/app/src/main/java/com/muwahid/app/MainActivity.java
           cd Muwahid
           bash VERIFY_PROJECT.sh
       - name: Prepare stable signing
@@ -59,7 +62,7 @@ jobs:
         if: ${{ env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.6
+          name: Muwahid-APK-0.13.7
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Enable KVM
@@ -68,19 +71,19 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Check Muwahid 0.13.6 on Android
+      - name: Check Muwahid 0.13.7 on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
           arch: x86_64
           profile: pixel_2
-          disable-animations: true
+          disable-animations: 'true'
           script: |
             set -e
             adb install Muwahid/app/build/outputs/apk/debug/app-debug.apk
             adb install Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation | tee smoke-result.txt
-            grep -F 'MW_SMOKE_OK: 0.13.6' smoke-result.txt
+            grep -F 'MW_SMOKE_OK: 0.13.7' smoke-result.txt
             mkdir -p screenshots
             adb pull /sdcard/Android/data/com.muwahid.app/files/. screenshots/ || true
             test -f screenshots/chat_screen.png
@@ -90,7 +93,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.6-device-check
+          name: Muwahid-0.13.7-device-check
           path: |
             screenshots/
             smoke-result.txt
@@ -103,14 +106,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION_NAME=0.13.6
-          VERSION_CODE=40
+          VERSION_NAME=0.13.7
+          VERSION_CODE=41
           APK="$GITHUB_WORKSPACE/Muwahid/app/build/outputs/apk/release/app-release.apk"
           ASSET="Muwahid-${VERSION_NAME}.apk"
           cp "$APK" "$GITHUB_WORKSPACE/$ASSET"
           SHA256=$(sha256sum "$GITHUB_WORKSPACE/$ASSET" | awk '{print $1}')
           TAG="v${VERSION_NAME}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${VERSION_NAME}" --notes "Исправление HTTP 400 refresh_token_already_used, новый экран чата, вложения и звонки."
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${VERSION_NAME}" --notes "Полный интерфейс мессенджера: список чатов, вложения, камера, геолокация, документы, голосовые сообщения и звонки."
           gh release upload "$TAG" "$GITHUB_WORKSPACE/$ASSET" --clobber
           mkdir -p updates
           jq -n \
@@ -118,7 +121,7 @@ jobs:
             --arg versionName "$VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Исправлена ошибка сессии HTTP 400; проверены чат, аудио/видеозвонки, вложения и камера." \
+            --arg notes "Новый интерфейс чатов, камера фото/видео, местоположение, документы, контакты, опросы, голосовые сообщения и экраны звонков." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
