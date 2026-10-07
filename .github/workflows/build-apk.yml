@@ -107,10 +107,7 @@ jobs:
             adb pull /sdcard/Android/data/com.muwahid.app/files/. screenshots/ || true
             test -f screenshots/chat_screen.png
             adb logcat -d -s AndroidRuntime:E > crash-log.txt || true
-            if grep -q 'FATAL EXCEPTION' crash-log.txt; then
-              cat crash-log.txt
-              exit 1
-            fi
+            ! grep -q 'FATAL EXCEPTION' crash-log.txt || { cat crash-log.txt; exit 1; }
 
       - name: Upload device verification
         if: always()
