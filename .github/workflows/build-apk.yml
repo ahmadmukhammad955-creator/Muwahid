@@ -62,7 +62,7 @@ jobs:
         if: ${{ env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.9'
+          name: Muwahid_0.13.9_PROJECT.zip
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Enable KVM
@@ -106,8 +106,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION_NAME=0.13.8
-          VERSION_CODE=42
+          VERSION_NAME=0.13.9'
+          VERSION_CODE=43
           APK="$GITHUB_WORKSPACE/Muwahid/app/build/outputs/apk/release/app-release.apk"
           ASSET="Muwahid-${VERSION_NAME}.apk"
           cp "$APK" "$GITHUB_WORKSPACE/$ASSET"
