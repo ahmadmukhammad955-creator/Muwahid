@@ -1,7 +1,7 @@
 {
-  "versionCode": 51,
-  "versionName": "0.13.17",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.17/Muwahid-0.13.17.apk",
-  "sha256": "4d1148877437e16d36efa37dee68c46ff8ee22c71042488db20323008efed6ac",
-  "notes": "Исправлен реальный масштаб иконок и обрезание элементов строки ввода; Android smoke-test проверяет это перед публикацией."
+  "versionCode": 54,
+  "versionName": "0.13.20",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.20/Muwahid-0.13.20.apk",
+  "sha256": "58cfbc0767ee6bb25222ad44b39806713ac31c21b4a8d9b62276411089618e4c",
+  "notes": "Стикеры и эмодзи подключены к Supabase: создание наборов, импорт файлов, избранное, недавние, пользовательские эмодзи и импорт через Поделиться из других приложений."
 }
