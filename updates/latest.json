@@ -1,7 +1,7 @@
 {
-  "versionCode": 54,
-  "versionName": "0.13.20",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.20/Muwahid-0.13.20.apk",
-  "sha256": "aeb92216e2bec422722815c83afacdecd9eb49bdef43f89fb44ccb8536254ae6",
+  "versionCode": 55,
+  "versionName": "0.13.21",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.21/Muwahid-0.13.21.apk",
+  "sha256": "5ddbae99f634b37e4b03fcd94e3ed94df6a25f4f6f238072695486c7a80936d5",
   "notes": "Стикеры и эмодзи подключены к Supabase: создание наборов, импорт файлов, избранное, недавние, пользовательские эмодзи и импорт через Поделиться из других приложений."
 }
