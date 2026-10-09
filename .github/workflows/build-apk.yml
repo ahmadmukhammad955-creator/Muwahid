@@ -9,9 +9,9 @@ permissions:
   contents: write
 
 env:
-  PROJECT_ZIP: Muwahid_0.13.16_PROJECT.zip
-  EXPECTED_VERSION_NAME: '0.13.16'
-  EXPECTED_VERSION_CODE: '50'
+  PROJECT_ZIP: Muwahid_0.13.17_PROJECT.zip
+  EXPECTED_VERSION_NAME: '0.13.17'
+  EXPECTED_VERSION_CODE: '51'
 
 jobs:
   build:
@@ -30,7 +30,7 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Extract and verify Muwahid 0.13.16
+      - name: Extract and verify Muwahid 0.13.17
         shell: bash
         run: |
           set -euo pipefail
@@ -89,7 +89,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Check Muwahid 0.13.16 on Android
+      - name: Check Muwahid 0.13.17 on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
