@@ -11,7 +11,7 @@ permissions:
 env:
   PROJECT_ZIP: Muwahid_0.13.11_PROJECT.zip
   EXPECTED_VERSION_NAME: '0.13.11'
-  EXPECTED_VERSION_CODE: '45'
+  EXPECTED_VERSION_CODE: '46'
 
 jobs:
   build:
