@@ -1,7 +1,7 @@
 {
-  "versionCode": 50,
-  "versionName": "0.13.16",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.16/Muwahid-0.13.16.apk",
-  "sha256": "efbe4971dae3d96c6ef63a2b8cdfd372d6a64b819750103dc368838567e9bb5c",
+  "versionCode": 51,
+  "versionName": "0.13.17",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.17/Muwahid-0.13.17.apk",
+  "sha256": "9682af2c7e6506ff956e185cb7a9525c1f1da5b68dbc444fe1cabfcd2caa29ef",
   "notes": "Исправлен реальный масштаб иконок и обрезание элементов строки ввода; Android smoke-test проверяет это перед публикацией."
 }
