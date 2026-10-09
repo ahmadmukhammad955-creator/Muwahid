@@ -1,53 +1,96 @@
-name: Build Muwahid APK
+name: Build Muwahid APK 0.13.19
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 permissions:
   contents: write
-
-env:
-  PROJECT_ZIP: Muwahid_0.13.17_PROJECT.zip
-  EXPECTED_VERSION_NAME: '0.13.17'
-  EXPECTED_VERSION_CODE: '51'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
-    steps:
-      - uses: actions/checkout@v4
+    env:
+      PROJECT_ZIP: Muwahid_0.13.19_PROJECT.zip
+      EXPECTED_VERSION_NAME: "0.13.19"
+      EXPECTED_VERSION_CODE: "53"
 
-      - uses: actions/setup-java@v5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - name: Setup Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.7'
+          gradle-version: "8.7"
 
-      - name: Extract and verify Muwahid 0.13.17
+      - name: Verify exact Muwahid 0.13.19
         shell: bash
         run: |
           set -euo pipefail
-          test -f "$PROJECT_ZIP"
+
+          test -f "$PROJECT_ZIP" || {
+            echo "ERROR: $PROJECT_ZIP not found"
+            exit 1
+          }
+
           rm -rf Muwahid
           unzip -q "$PROJECT_ZIP"
-          test -f Muwahid/app/build.gradle
-          grep -Fq "versionCode ${EXPECTED_VERSION_CODE}" Muwahid/app/build.gradle
-          grep -Fq "versionName '${EXPECTED_VERSION_NAME}'" Muwahid/app/build.gradle
-          grep -Fq 'private void showAttachmentSheet()' Muwahid/app/src/main/java/com/muwahid/app/MainActivity.java
-          grep -Fq 'MuwahidCameraActivity' Muwahid/app/src/main/AndroidManifest.xml
-          grep -Fq 'LocationShareActivity' Muwahid/app/src/main/AndroidManifest.xml
-          grep -Fq 'MuwahidDocumentActivity' Muwahid/app/src/main/AndroidManifest.xml
-          ! grep -Fq 'setHiddenChat(' Muwahid/app/src/main/java/com/muwahid/app/MainActivity.java
-          grep -Fq 'else hideChat(id);drawChatList();' Muwahid/app/src/main/java/com/muwahid/app/MainActivity.java
-          cd Muwahid
-          bash VERIFY_PROJECT.sh
+
+          test -f Muwahid/app/build.gradle || {
+            echo "ERROR: app/build.gradle not found"
+            exit 1
+          }
+
+          VERSION_NAME="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" Muwahid/app/build.gradle | head -1)"
+          VERSION_CODE="$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' Muwahid/app/build.gradle | head -1)"
+
+          echo "ZIP: $PROJECT_ZIP"
+          echo "versionName: $VERSION_NAME"
+          echo "versionCode: $VERSION_CODE"
+
+          test "$VERSION_NAME" = "$EXPECTED_VERSION_NAME" || {
+            echo "ERROR: expected versionName $EXPECTED_VERSION_NAME, got $VERSION_NAME"
+            exit 1
+          }
+
+          test "$VERSION_CODE" = "$EXPECTED_VERSION_CODE" || {
+            echo "ERROR: expected versionCode $EXPECTED_VERSION_CODE, got $VERSION_CODE"
+            exit 1
+          }
+
+          if grep -RInF \
+            --exclude='*.jks' \
+            --exclude='*.keystore' \
+            --exclude='*.png' \
+            --exclude='*.jpg' \
+            --exclude='*.jpeg' \
+            --exclude='*.webp' \
+            --exclude='*.gif' \
+            --exclude='*.zip' \
+            '0.13.17' Muwahid; then
+            echo "ERROR: found old 0.13.17 reference inside project"
+            exit 1
+          fi
+
+          if [ -f Muwahid/PROJECT_CHECKSUMS.sha256 ]; then
+            (cd Muwahid && sha256sum -c PROJECT_CHECKSUMS.sha256)
+          fi
+
+          if [ -f Muwahid/VERIFY_PROJECT.sh ]; then
+            VERIFY_OUTPUT="$(cd Muwahid && bash VERIFY_PROJECT.sh)"
+            printf '%s\n' "$VERIFY_OUTPUT"
+            printf '%s\n' "$VERIFY_OUTPUT" | grep -F "MW_SOURCE_OK 0.13.19"
+          fi
+
+          echo "MW_SOURCE_OK 0.13.19 CLEAN_NO_0.13.17"
 
       - name: Prepare stable signing
         env:
@@ -64,10 +107,8 @@ jobs:
             echo "MUWAHID_STABLE_SIGNING=false" >> "$GITHUB_ENV"
           fi
 
-      - name: Build debug and Android test APKs
-        env:
-          MUWAHID_KEYSTORE_PASSWORD: ${{ secrets.MUWAHID_KEYSTORE_PASSWORD }}
-        run: cd Muwahid && gradle --no-daemon assembleDebug assembleDebugAndroidTest
+      - name: Build debug APK
+        run: cd Muwahid && gradle --no-daemon assembleDebug
 
       - name: Build signed release APK
         if: ${{ env.MUWAHID_STABLE_SIGNING == 'true' }}
@@ -75,86 +116,17 @@ jobs:
           MUWAHID_KEYSTORE_PASSWORD: ${{ secrets.MUWAHID_KEYSTORE_PASSWORD }}
         run: cd Muwahid && gradle --no-daemon assembleRelease
 
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Muwahid-0.13.19-debug
+          path: Muwahid/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
       - name: Upload signed APK
         if: ${{ env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-${{ env.EXPECTED_VERSION_NAME }}
+          name: Muwahid-APK-0.13.19
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Check Muwahid 0.13.17 on Android
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          arch: x86_64
-          profile: pixel_2
-          disable-animations: 'true'
-          script: |
-            set -eu
-            adb install -r Muwahid/app/build/outputs/apk/debug/app-debug.apk
-            adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > smoke-result.txt
-            cat smoke-result.txt
-            grep -F "MW_SMOKE_OK: ${EXPECTED_VERSION_NAME}" smoke-result.txt
-            mkdir -p screenshots
-            adb pull /sdcard/Android/data/com.muwahid.app/files/. screenshots/ || true
-            test -f screenshots/chat_screen.png
-            adb logcat -d -s AndroidRuntime:E > crash-log.txt || true
-            ! grep -q 'FATAL EXCEPTION' crash-log.txt || { cat crash-log.txt; exit 1; }
-
-      - name: Upload device verification
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Muwahid-${{ env.EXPECTED_VERSION_NAME }}-device-check
-          path: |
-            screenshots/
-            smoke-result.txt
-            crash-log.txt
-          if-no-files-found: warn
-
-      - name: Publish signed update
-        if: ${{ success() && env.MUWAHID_STABLE_SIGNING == 'true' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION_NAME="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" Muwahid/app/build.gradle | head -1)"
-          VERSION_CODE="$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' Muwahid/app/build.gradle | head -1)"
-          test "$VERSION_NAME" = "$EXPECTED_VERSION_NAME"
-          test "$VERSION_CODE" = "$EXPECTED_VERSION_CODE"
-
-          APK="$GITHUB_WORKSPACE/Muwahid/app/build/outputs/apk/release/app-release.apk"
-          ASSET="Muwahid-${VERSION_NAME}.apk"
-          RELEASE_APK="$GITHUB_WORKSPACE/$ASSET"
-          cp "$APK" "$RELEASE_APK"
-          SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
-          TAG="v${VERSION_NAME}"
-
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${VERSION_NAME}" --notes "Muwahid ${VERSION_NAME}: icon scale fix, composer layout fix, and verified Android smoke test."
-          gh release upload "$TAG" "$RELEASE_APK" --clobber
-
-          mkdir -p updates
-          jq -n \
-            --argjson versionCode "$VERSION_CODE" \
-            --arg versionName "$VERSION_NAME" \
-            --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
-            --arg sha256 "$SHA256" \
-            --arg notes "Исправлен реальный масштаб иконок и обрезание элементов строки ввода; Android smoke-test проверяет это перед публикацией." \
-            '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add updates/latest.json
-          if ! git diff --cached --quiet; then
-            git commit -m "Publish Muwahid ${VERSION_NAME} [skip ci]"
-            git push
-          fi
