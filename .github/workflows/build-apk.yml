@@ -1,4 +1,4 @@
-name: Build Muwahid APK 0.13.20
+name: Build Muwahid APK 0.13.21
 
 on:
   workflow_dispatch:
@@ -13,9 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      PROJECT_ZIP: Muwahid_0.13.20_PROJECT.zip
-      EXPECTED_VERSION_NAME: '0.13.20'
-      EXPECTED_VERSION_CODE: '54'
+      PROJECT_ZIP: Muwahid_0.13.21_PROJECT.zip
+      EXPECTED_VERSION_NAME: '0.13.21'
+      EXPECTED_VERSION_CODE: '55'
 
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Extract and verify Muwahid 0.13.20
+      - name: Extract and verify Muwahid 0.13.21
         shell: bash
         run: |
           set -euo pipefail
@@ -101,7 +101,7 @@ jobs:
         if: ${{ env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.20
+          name: Muwahid-APK-0.13.21
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -109,7 +109,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.20-device-check
+          name: Muwahid-0.13.21-device-check
           path: |
             screenshots/
             smoke-result.txt
