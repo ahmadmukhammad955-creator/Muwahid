@@ -9,9 +9,9 @@ permissions:
   contents: write
 
 env:
-  PROJECT_ZIP: Muwahid_0.13.12_PROJECT.zip
-  EXPECTED_VERSION_NAME: '0.13.12'
-  EXPECTED_VERSION_CODE: '46'
+  PROJECT_ZIP: Muwahid_0.13.14_PROJECT.zip
+  EXPECTED_VERSION_NAME: '0.13.14'
+  EXPECTED_VERSION_CODE: '48'
 
 jobs:
   build:
@@ -30,7 +30,7 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Extract and verify Muwahid 0.13.12
+      - name: Extract and verify Muwahid 0.13.14
         shell: bash
         run: |
           set -euo pipefail
@@ -89,7 +89,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Check Muwahid 0.13.12 on Android
+      - name: Check Muwahid 0.13.14 on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
@@ -139,7 +139,7 @@ jobs:
           SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
           TAG="v${VERSION_NAME}"
 
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${VERSION_NAME}" --notes "Muwahid ${VERSION_NAME}: reference messenger UI polish and verified Android smoke test."
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${VERSION_NAME}" --notes "Muwahid ${VERSION_NAME}: icon scale fix, composer layout fix, and verified Android smoke test."
           gh release upload "$TAG" "$RELEASE_APK" --clobber
 
           mkdir -p updates
@@ -148,7 +148,7 @@ jobs:
             --arg versionName "$VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Улучшен интерфейс чата и меню вложений; сборка и Android smoke-test проверяются перед публикацией." \
+            --arg notes "Исправлен реальный масштаб иконок и обрезание элементов строки ввода; Android smoke-test проверяет это перед публикацией." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
 
           git config user.name "github-actions[bot]"
