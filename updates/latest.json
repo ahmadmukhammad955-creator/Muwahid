@@ -2,6 +2,6 @@
   "versionCode": 46,
   "versionName": "0.13.12",
   "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.12/Muwahid-0.13.12.apk",
-  "sha256": "e0b1e981ebd659b6be3fbdd718569df43429514be7d9aa88151e1128957f2ac7",
+  "sha256": "1efcb9eaf8b7085e27e27521af9f3eec86ad53a362c66b96b925600dfc866dc4",
   "notes": "Улучшен интерфейс чата и меню вложений; сборка и Android smoke-test проверяются перед публикацией."
 }
