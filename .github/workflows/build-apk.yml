@@ -1,4 +1,4 @@
-name: Build Muwahid APK 0.13.21
+name: Build Muwahid APK 0.13.22
 
 on:
   workflow_dispatch:
@@ -13,9 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      PROJECT_ZIP: Muwahid_0.13.21_PROJECT.zip
-      EXPECTED_VERSION_NAME: '0.13.21'
-      EXPECTED_VERSION_CODE: '55'
+      PROJECT_ZIP: Muwahid_0.13.22_PROJECT.zip
+      EXPECTED_VERSION_NAME: '0.13.22'
+      EXPECTED_VERSION_CODE: '56'
 
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Extract and verify Muwahid 0.13.21
+      - name: Extract and verify Muwahid 0.13.22
         shell: bash
         run: |
           set -euo pipefail
@@ -101,7 +101,7 @@ jobs:
         if: ${{ env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.21
+          name: Muwahid-APK-0.13.22
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -109,7 +109,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.21-device-check
+          name: Muwahid-0.13.22-device-check
           path: |
             screenshots/
             smoke-result.txt
@@ -129,7 +129,7 @@ jobs:
           cp "$APK" "$RELEASE_APK"
           SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
           TAG="v${EXPECTED_VERSION_NAME}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Supabase sticker bridge and share import."
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: real-time audio-room mixer, music, soundboard and recording."
           gh release upload "$TAG" "$RELEASE_APK" --clobber
           mkdir -p updates
           jq -n \
@@ -137,7 +137,7 @@ jobs:
             --arg versionName "$EXPECTED_VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Стикеры и эмодзи подключены к Supabase: создание наборов, импорт файлов, избранное, недавние, пользовательские эмодзи и импорт через Поделиться из других приложений." \
+            --arg notes "Аудиокомнаты: новый 4×2 интерфейс, реальный Web Audio микшер, музыка, soundboard, запись комнаты, модерация и WebRTC-статус." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
