@@ -1,7 +1,7 @@
 {
-  "versionCode": 55,
-  "versionName": "0.13.21",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.21/Muwahid-0.13.21.apk",
-  "sha256": "e622dcd669df91ae1057a6b65e5836126c41616975d0220d115699b0d963b7a5",
-  "notes": "Стикеры и эмодзи подключены к Supabase: создание наборов, импорт файлов, избранное, недавние, пользовательские эмодзи и импорт через Поделиться из других приложений."
+  "versionCode": 56,
+  "versionName": "0.13.22",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.22/Muwahid-0.13.22.apk",
+  "sha256": "c7f17e2aabe879d0ee120650d3299510043aad8dd4103344ce30c9660c36bd1b",
+  "notes": "Аудиокомнаты: новый 4×2 интерфейс, реальный Web Audio микшер, музыка, soundboard, запись комнаты, модерация и WebRTC-статус."
 }
