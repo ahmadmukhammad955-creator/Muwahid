@@ -2,6 +2,6 @@
   "versionCode": 57,
   "versionName": "0.13.23",
   "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.23/Muwahid-0.13.23.apk",
-  "sha256": "546cf1725781bfaceb548b563ac460c49638227601f2079383ee29c20e8b0aed",
+  "sha256": "c7e71f5e3fd99ae8f252b252c3d2b95da71e50937362f18d17456360f3d23bd5",
   "notes": "Аудиокомнаты: новый 4×2 интерфейс, реальный Web Audio микшер, музыка, soundboard, запись комнаты, модерация и WebRTC-статус."
 }
