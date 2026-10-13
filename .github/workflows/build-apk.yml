@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      PROJECT_ZIP: Muwahid_0.13.22_PROJECT.zip
+      PROJECT_ZIP: Muwahid_0.13.23_PROJECT.zip
       EXPECTED_VERSION_NAME: '0.13.23'
       EXPECTED_VERSION_CODE: '57'
 
