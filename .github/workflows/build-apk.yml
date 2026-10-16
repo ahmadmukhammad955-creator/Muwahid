@@ -15,7 +15,7 @@ jobs:
     env:
       PROJECT_ZIP: Muwahid_0.13.23_PROJECT.zip
       EXPECTED_VERSION_NAME: '0.13.23'
-      EXPECTED_VERSION_CODE: '57'
+      EXPECTED_VERSION_CODE: '58'
 
     steps:
       - uses: actions/checkout@v4
@@ -129,7 +129,7 @@ jobs:
           cp "$APK" "$RELEASE_APK"
           SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
           TAG="v${EXPECTED_VERSION_NAME}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: real-time audio-room mixer, music, soundboard and recording."
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: reference UI refresh on the existing messenger; chats, calls, voice rooms, shared reading, privacy and backend logic preserved."
           gh release upload "$TAG" "$RELEASE_APK" --clobber
           mkdir -p updates
           jq -n \
@@ -137,7 +137,7 @@ jobs:
             --arg versionName "$EXPECTED_VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Аудиокомнаты: новый 4×2 интерфейс, реальный Web Audio микшер, музыка, soundboard, запись комнаты, модерация и WebRTC-статус." \
+            --arg notes "Интерфейс приведён к утверждённому светлому референсу: современные векторные иконки, чат-фильтры, звонки, навигация и голосовые комнаты; существующие функции и backend сохранены." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
