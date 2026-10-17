@@ -1,4 +1,4 @@
-name: Build Muwahid APK 0.13.24
+name: Build Muwahid APK 0.13.25
 
 on:
   workflow_dispatch:
@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      BUNDLE_ZIP: Muwahid_0.13.24_GITHUB_READY.zip
-      PROJECT_ZIP: Muwahid_0.13.24_PROJECT.zip
-      EXPECTED_VERSION_NAME: '0.13.24'
-      EXPECTED_VERSION_CODE: '59'
+      BUNDLE_ZIP: Muwahid_0.13.25_GITHUB_READY.zip
+      PROJECT_ZIP: Muwahid_0.13.25_PROJECT.zip
+      EXPECTED_VERSION_NAME: '0.13.25'
+      EXPECTED_VERSION_CODE: '60'
 
     steps:
       - uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Extract and verify Muwahid 0.13.24
+      - name: Extract and verify Muwahid 0.13.25
         shell: bash
         run: |
           set -euo pipefail
@@ -105,7 +105,7 @@ jobs:
         if: ${{ env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.24
+          name: Muwahid-APK-0.13.25
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -113,7 +113,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.24-device-check
+          name: Muwahid-0.13.25-device-check
           path: |
             screenshots/
             smoke-result.txt
@@ -141,7 +141,7 @@ jobs:
             --arg versionName "$EXPECTED_VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Главный экран упрощён до WhatsApp-стиля без вкладок групп и каналов; центральный LIVE создаёт аудио- и видеоэфиры по утверждённому референсу. Существующая сеть, звонки, контакты и backend сохранены." \
+            --arg notes "Главный экран упрощён до WhatsApp-стиля без вкладок групп и каналов; центральный LIVE создаёт аудио- и видеоэфиры по утверждённому референсу. В активном эфире добавлено приглашение участников. Существующая сеть, звонки, контакты и backend сохранены." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
