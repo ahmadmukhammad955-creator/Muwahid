@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
+      BUNDLE_ZIP: Muwahid_0.13.27_LIVE_REPAIRED_REV2_UPLOAD.zip
       PROJECT_ZIP: Muwahid_0.13.27_PROJECT.zip
       EXPECTED_VERSION_NAME: '0.13.27'
       EXPECTED_VERSION_CODE: '62'
@@ -31,8 +32,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
@@ -41,7 +40,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f "$PROJECT_ZIP"
+          test -f "$BUNDLE_ZIP" || { echo "Missing $BUNDLE_ZIP"; exit 1; }
+          unzip -tq "$BUNDLE_ZIP"
+          unzip -p "$BUNDLE_ZIP" "$PROJECT_ZIP" > "$PROJECT_ZIP"
+          test -s "$PROJECT_ZIP"
+          unzip -tq "$PROJECT_ZIP"
           rm -rf Muwahid
           unzip -q "$PROJECT_ZIP"
           test -f Muwahid/app/build.gradle
