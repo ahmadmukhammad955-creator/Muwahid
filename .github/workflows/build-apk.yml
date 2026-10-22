@@ -1,9 +1,15 @@
-name: Build Muwahid APK 0.13.26
+name: Build Muwahid APK 0.13.27
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish signed APK after verified device checks (main only)'
+        type: boolean
+        default: false
   push:
     branches: [main]
+  pull_request:
 
 permissions:
   contents: write
@@ -13,10 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      BUNDLE_ZIP: Muwahid_0.13.26_GITHUB_READY.zip
-      PROJECT_ZIP: Muwahid_0.13.26_PROJECT.zip
-      EXPECTED_VERSION_NAME: '0.13.26'
-      EXPECTED_VERSION_CODE: '61'
+      PROJECT_ZIP: Muwahid_0.13.27_PROJECT.zip
+      EXPECTED_VERSION_NAME: '0.13.27'
+      EXPECTED_VERSION_CODE: '62'
 
     steps:
       - uses: actions/checkout@v4
@@ -26,17 +31,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - uses: android-actions/setup-android@v3
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
-      - name: Extract and verify Muwahid 0.13.26
+      - name: Extract and verify Muwahid 0.13.27
         shell: bash
         run: |
           set -euo pipefail
-          test -f "$BUNDLE_ZIP"
-          rm -f "$PROJECT_ZIP"
-          unzip -q -o "$BUNDLE_ZIP" "$PROJECT_ZIP" -d .
           test -f "$PROJECT_ZIP"
           rm -rf Muwahid
           unzip -q "$PROJECT_ZIP"
@@ -50,6 +54,7 @@ jobs:
           bash VERIFY_PROJECT.sh
 
       - name: Prepare stable signing
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           MUWAHID_KEYSTORE_B64: ${{ secrets.MUWAHID_KEYSTORE_B64 }}
           MUWAHID_KEYSTORE_PASSWORD: ${{ secrets.MUWAHID_KEYSTORE_PASSWORD }}
@@ -70,7 +75,7 @@ jobs:
         run: cd Muwahid && gradle --no-daemon assembleDebug assembleDebugAndroidTest
 
       - name: Build signed release APK
-        if: ${{ env.MUWAHID_STABLE_SIGNING == 'true' }}
+        if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         env:
           MUWAHID_KEYSTORE_PASSWORD: ${{ secrets.MUWAHID_KEYSTORE_PASSWORD }}
         run: cd Muwahid && gradle --no-daemon assembleRelease
@@ -102,10 +107,10 @@ jobs:
             ! grep -q 'FATAL EXCEPTION' crash-log.txt || { cat crash-log.txt; exit 1; }
 
       - name: Upload signed APK
-        if: ${{ env.MUWAHID_STABLE_SIGNING == 'true' }}
+        if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.26
+          name: Muwahid-APK-0.13.27
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -113,7 +118,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.26-device-check
+          name: Muwahid-0.13.27-device-check
           path: |
             screenshots/
             smoke-result.txt
@@ -121,7 +126,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Publish signed update
-        if: ${{ success() && env.MUWAHID_STABLE_SIGNING == 'true' }}
+        if: ${{ success() && github.event_name == 'workflow_dispatch' && inputs.publish == true && github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -141,7 +146,7 @@ jobs:
             --arg versionName "$EXPECTED_VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Главный экран упрощён до WhatsApp-стиля без вкладок групп и каналов; центральный LIVE создаёт аудио- и видеоэфиры по утверждённому референсу. В активном эфире добавлено приглашение участников. Существующая сеть, звонки, контакты и backend сохранены." \
+            --arg notes "Главный экран упрощён до WhatsApp-стиля без вкладок групп и каналов; центральный LIVE создаёт аудио- и видеоэфиры по утверждённому референсу. Существующая сеть, звонки, контакты и backend сохранены." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
