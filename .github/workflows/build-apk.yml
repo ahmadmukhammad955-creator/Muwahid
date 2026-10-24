@@ -1,4 +1,4 @@
-name: Build Muwahid APK 0.13.28
+name: Build Muwahid APK 0.13.32
 
 on:
   workflow_dispatch:
@@ -14,14 +14,19 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: muwahid-live-apk-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      BUNDLE_ZIP: Muwahid_0.13.28_CONTACT_INVITES.zip
-      EXPECTED_VERSION_NAME: '0.13.28'
-      EXPECTED_VERSION_CODE: '63'
+      PROJECT_ZIP: Muwahid_0.13.32_LIVE_TWO_STAGE.zip
+      BUNDLE_ZIP: Muwahid_0.13.32_LIVE_TWO_STAGE.zip
+      EXPECTED_VERSION_NAME: '0.13.32'
+      EXPECTED_VERSION_CODE: '67'
 
     steps:
       - uses: actions/checkout@v4
@@ -31,16 +36,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - uses: android-actions/setup-android@v3
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
-      - name: Extract and verify Muwahid 0.13.28
+      - name: Extract and verify Muwahid 0.13.32
         shell: bash
         run: |
           set -euo pipefail
-          test -f "$BUNDLE_ZIP" || { echo "Missing $BUNDLE_ZIP"; exit 1; }
-          unzip -tq "$BUNDLE_ZIP"
+          test -f "$BUNDLE_ZIP"
           rm -rf Muwahid
           unzip -q "$BUNDLE_ZIP"
           test -f Muwahid/app/build.gradle
@@ -51,8 +57,9 @@ jobs:
           cd Muwahid
           sha256sum -c PROJECT_CHECKSUMS.sha256
           bash VERIFY_PROJECT.sh
-          grep -Fq 'showInviteContacts(text.toString())' app/src/main/java/com/muwahid/app/VoiceRoomActivity.java
-          grep -Fq 'Присоединиться к эфиру' app/src/main/java/com/muwahid/app/MainActivity.java
+          python3 tests/check_live_01332_two_stage.py
+          python3 tests/check_live_01332.py
+          python3 tests/check_update_alerts.py
 
       - name: Prepare stable signing
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -107,11 +114,19 @@ jobs:
             adb logcat -d -s AndroidRuntime:E > crash-log.txt || true
             ! grep -q 'FATAL EXCEPTION' crash-log.txt || { cat crash-log.txt; exit 1; }
 
+      - name: Upload installable debug APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Muwahid-0.13.32-debug-apk
+          path: Muwahid/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: warn
+
       - name: Upload signed APK
         if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.28
+          name: Muwahid-APK-0.13.32
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -119,7 +134,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.28-device-check
+          name: Muwahid-0.13.32-device-check
           path: |
             screenshots/
             smoke-result.txt
@@ -139,7 +154,7 @@ jobs:
           cp "$APK" "$RELEASE_APK"
           SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
           TAG="v${EXPECTED_VERSION_NAME}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: WhatsApp-style chat list with central LIVE; calls, contacts, privacy, backend and existing messenger logic preserved."
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: LIVE photo/video backgrounds, universal invitations and room expiration; existing messenger features preserved."
           gh release upload "$TAG" "$RELEASE_APK" --clobber
           mkdir -p updates
           jq -n \
@@ -147,12 +162,18 @@ jobs:
             --arg versionName "$EXPECTED_VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Главный экран упрощён до WhatsApp-стиля без вкладок групп и каналов; центральный LIVE создаёт аудио- и видеоэфиры по утверждённому референсу. Существующая сеть, звонки, контакты и backend сохранены." \
+            --arg notes "Новые фоны фото/видео для эфира, приглашения контактам Muwahid и через другие приложения, надёжное завершение эфира для всех. Сохранены аудиоисправления и проверка обновлений." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
+          # Keep metadata from THIS APK, but update from the latest remote main.
+          cp updates/latest.json "$RUNNER_TEMP/muwahid-latest.json"
+          git restore --staged --worktree updates/latest.json || true
+          git fetch origin main
+          git switch -C muwahid-release-meta origin/main
+          cp "$RUNNER_TEMP/muwahid-latest.json" updates/latest.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add updates/latest.json
           if ! git diff --cached --quiet; then
             git commit -m "Publish Muwahid ${EXPECTED_VERSION_NAME} [skip ci]"
-            git push
+            git push origin HEAD:main
           fi
