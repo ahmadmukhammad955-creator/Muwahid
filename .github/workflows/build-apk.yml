@@ -23,8 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      PROJECT_ZIP: Muwahid_0.13.32_LIVE_TWO_STAGE.zip
-      BUNDLE_ZIP: Muwahid_0.13.32_LIVE_TWO_STAGE.zip
+      PROJECT_ZIP: Muwahid_0.13.32_FIXED_DOWNLOAD.zip
+      BUNDLE_ZIP: Muwahid_0.13.32_FIXED_DOWNLOAD.zip
       EXPECTED_VERSION_NAME: '0.13.32'
       EXPECTED_VERSION_CODE: '67'
 
