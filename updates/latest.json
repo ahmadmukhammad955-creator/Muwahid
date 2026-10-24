@@ -1,7 +1,7 @@
 {
-  "versionCode": 63,
-  "versionName": "0.13.28",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.28/Muwahid-0.13.28.apk",
-  "sha256": "958cb74850de1c68344459bd83f8c2bcb19322ff7ae3e069067d832447203dff",
-  "notes": "Главный экран упрощён до WhatsApp-стиля без вкладок групп и каналов; центральный LIVE создаёт аудио- и видеоэфиры по утверждённому референсу. Существующая сеть, звонки, контакты и backend сохранены."
+  "versionCode": 67,
+  "versionName": "0.13.32",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.32/Muwahid-0.13.32.apk",
+  "sha256": "555a19c6c25e654e014f4dd46b03267c3498e9e7b46e6aa975c890a06981aafe",
+  "notes": "Новые фоны фото/видео для эфира, приглашения контактам Muwahid и через другие приложения, надёжное завершение эфира для всех. Сохранены аудиоисправления и проверка обновлений."
 }
