@@ -37,6 +37,8 @@ jobs:
           java-version: '17'
 
       - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -115,7 +117,7 @@ jobs:
             ! grep -q 'FATAL EXCEPTION' crash-log.txt || { cat crash-log.txt; exit 1; }
 
       - name: Upload installable debug APK
-        if: always()
+        if: ${{ always() && hashFiles('Muwahid/app/build/outputs/apk/debug/app-debug.apk') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: Muwahid-0.13.32-debug-apk
@@ -131,7 +133,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload device verification
-        if: always()
+        if: ${{ always() && (hashFiles('smoke-result.txt') != '' || hashFiles('crash-log.txt') != '') }}
         uses: actions/upload-artifact@v4
         with:
           name: Muwahid-0.13.32-device-check
