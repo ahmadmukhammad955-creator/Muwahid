@@ -1,4 +1,4 @@
-name: Build Muwahid APK 0.13.27
+name: Build Muwahid APK 0.13.28
 
 on:
   workflow_dispatch:
@@ -19,10 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      BUNDLE_ZIP: Muwahid_0.13.27_LIVE_REPAIRED_REV2_UPLOAD.zip
-      PROJECT_ZIP: Muwahid_0.13.27_PROJECT.zip
-      EXPECTED_VERSION_NAME: '0.13.27'
-      EXPECTED_VERSION_CODE: '62'
+      BUNDLE_ZIP: Muwahid_0.13.28_CONTACT_INVITES.zip
+      EXPECTED_VERSION_NAME: '0.13.28'
+      EXPECTED_VERSION_CODE: '63'
 
     steps:
       - uses: actions/checkout@v4
@@ -36,17 +35,14 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Extract and verify Muwahid 0.13.27
+      - name: Extract and verify Muwahid 0.13.28
         shell: bash
         run: |
           set -euo pipefail
           test -f "$BUNDLE_ZIP" || { echo "Missing $BUNDLE_ZIP"; exit 1; }
           unzip -tq "$BUNDLE_ZIP"
-          unzip -p "$BUNDLE_ZIP" "$PROJECT_ZIP" > "$PROJECT_ZIP"
-          test -s "$PROJECT_ZIP"
-          unzip -tq "$PROJECT_ZIP"
           rm -rf Muwahid
-          unzip -q "$PROJECT_ZIP"
+          unzip -q "$BUNDLE_ZIP"
           test -f Muwahid/app/build.gradle
           VERSION_NAME="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" Muwahid/app/build.gradle | head -1)"
           VERSION_CODE="$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' Muwahid/app/build.gradle | head -1)"
@@ -55,6 +51,8 @@ jobs:
           cd Muwahid
           sha256sum -c PROJECT_CHECKSUMS.sha256
           bash VERIFY_PROJECT.sh
+          grep -Fq 'showInviteContacts(text.toString())' app/src/main/java/com/muwahid/app/VoiceRoomActivity.java
+          grep -Fq 'Присоединиться к эфиру' app/src/main/java/com/muwahid/app/MainActivity.java
 
       - name: Prepare stable signing
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -113,7 +111,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.27
+          name: Muwahid-APK-0.13.28
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -121,7 +119,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.27-device-check
+          name: Muwahid-0.13.28-device-check
           path: |
             screenshots/
             smoke-result.txt
