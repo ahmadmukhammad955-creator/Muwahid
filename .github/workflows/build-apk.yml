@@ -1,4 +1,4 @@
-name: Build Muwahid APK 0.13.32
+name: Build Muwahid APK 0.13.33
 
 on:
   workflow_dispatch:
@@ -23,10 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      PROJECT_ZIP: Muwahid_0.13.32_LIVE_TWO_STAGE.zip
-      BUNDLE_ZIP: Muwahid_0.13.32_LIVE_TWO_STAGE.zip
-      EXPECTED_VERSION_NAME: '0.13.32'
-      EXPECTED_VERSION_CODE: '67'
+      PROJECT_ZIP: Muwahid_0.13.33_CALL_PUSH_READY.zip
+      BUNDLE_ZIP: Muwahid_0.13.33_CALL_PUSH_READY.zip
+      EXPECTED_VERSION_NAME: '0.13.33'
+      EXPECTED_VERSION_CODE: '68'
 
     steps:
       - uses: actions/checkout@v4
@@ -64,7 +64,7 @@ jobs:
           echo "$RUNNER_TEMP/gradle-8.7/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/gradle-8.7/bin/gradle" --version
 
-      - name: Extract and verify Muwahid 0.13.32
+      - name: Extract and verify Muwahid 0.13.33
         shell: bash
         run: |
           set -euo pipefail
@@ -82,12 +82,17 @@ jobs:
           python3 tests/check_live_01332_two_stage.py
           python3 tests/check_live_01332.py
           python3 tests/check_update_alerts.py
+          python3 tests/check_call_push_01333.py
 
       - name: Prepare stable signing
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           MUWAHID_KEYSTORE_B64: ${{ secrets.MUWAHID_KEYSTORE_B64 }}
           MUWAHID_KEYSTORE_PASSWORD: ${{ secrets.MUWAHID_KEYSTORE_PASSWORD }}
+          MUWAHID_FCM_APP_ID: ${{ secrets.MUWAHID_FCM_APP_ID }}
+          MUWAHID_FCM_API_KEY: ${{ secrets.MUWAHID_FCM_API_KEY }}
+          MUWAHID_FCM_SENDER_ID: ${{ secrets.MUWAHID_FCM_SENDER_ID }}
+          MUWAHID_FCM_PROJECT_ID: ${{ secrets.MUWAHID_FCM_PROJECT_ID }}
         shell: bash
         run: |
           set -euo pipefail
@@ -102,12 +107,20 @@ jobs:
       - name: Build debug and Android test APKs
         env:
           MUWAHID_KEYSTORE_PASSWORD: ${{ secrets.MUWAHID_KEYSTORE_PASSWORD }}
+          MUWAHID_FCM_APP_ID: ${{ secrets.MUWAHID_FCM_APP_ID }}
+          MUWAHID_FCM_API_KEY: ${{ secrets.MUWAHID_FCM_API_KEY }}
+          MUWAHID_FCM_SENDER_ID: ${{ secrets.MUWAHID_FCM_SENDER_ID }}
+          MUWAHID_FCM_PROJECT_ID: ${{ secrets.MUWAHID_FCM_PROJECT_ID }}
         run: cd Muwahid && gradle --no-daemon assembleDebug assembleDebugAndroidTest
 
       - name: Build signed release APK
         if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         env:
           MUWAHID_KEYSTORE_PASSWORD: ${{ secrets.MUWAHID_KEYSTORE_PASSWORD }}
+          MUWAHID_FCM_APP_ID: ${{ secrets.MUWAHID_FCM_APP_ID }}
+          MUWAHID_FCM_API_KEY: ${{ secrets.MUWAHID_FCM_API_KEY }}
+          MUWAHID_FCM_SENDER_ID: ${{ secrets.MUWAHID_FCM_SENDER_ID }}
+          MUWAHID_FCM_PROJECT_ID: ${{ secrets.MUWAHID_FCM_PROJECT_ID }}
         run: cd Muwahid && gradle --no-daemon assembleRelease
 
       - name: Enable KVM
@@ -140,7 +153,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.32-debug-apk
+          name: Muwahid-0.13.33-debug-apk
           path: Muwahid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: warn
 
@@ -148,7 +161,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.32
+          name: Muwahid-APK-0.13.33
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -156,7 +169,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.32-device-check
+          name: Muwahid-0.13.33-device-check
           path: |
             screenshots/
             smoke-result.txt
