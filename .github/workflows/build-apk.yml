@@ -40,30 +40,29 @@ jobs:
         with:
           packages: "platform-tools"
 
-      # Gradle 8.7 installation with retries and a second distribution mirror.
-      # Avoid a transient setup-gradle HTTP 504 failing the job before compilation.
-      - name: Install Gradle 8.7 with retry
+      - name: Install Gradle 8.7 with fallback
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/gradle-dist"
-          DIST="$RUNNER_TEMP/gradle-dist/gradle-8.7-bin.zip"
+          DIST="$RUNNER_TEMP/gradle-8.7-bin.zip"
           ok=false
           for url in \
-            'https://services.gradle.org/distributions/gradle-8.7-bin.zip' \
-            'https://downloads.gradle.org/distributions/gradle-8.7-bin.zip'; do
-            if curl --fail --location --retry 5 --retry-all-errors --retry-delay 5 \
-                --connect-timeout 20 --max-time 240 --output "$DIST" "$url" \
-                && unzip -tq "$DIST" >/dev/null; then
+            "https://github.com/gradle/gradle-distributions/releases/download/v8.7.0/gradle-8.7-bin.zip" \
+            "https://services.gradle.org/distributions/gradle-8.7-bin.zip" \
+            "https://downloads.gradle.org/distributions/gradle-8.7-bin.zip"; do
+            rm -f "$DIST"
+            if curl -fL --retry 3 --retry-all-errors --retry-delay 5 --connect-timeout 20 --max-time 240 -o "$DIST" "$url" && unzip -tq "$DIST" >/dev/null; then
               ok=true
               break
             fi
-            rm -f "$DIST"
           done
-          test "$ok" = true || { echo 'Gradle 8.7 download failed on both mirrors'; exit 1; }
-          unzip -q "$DIST" -d "$RUNNER_TEMP/gradle-dist"
-          echo "$RUNNER_TEMP/gradle-dist/gradle-8.7/bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/gradle-dist/gradle-8.7/bin/gradle" --version
+          if [ "$ok" != true ]; then
+            echo "::error::Gradle 8.7 unavailable from all configured sources"
+            exit 1
+          fi
+          unzip -q "$DIST" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gradle-8.7/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/gradle-8.7/bin/gradle" --version
 
       - name: Extract and verify Muwahid 0.13.32
         shell: bash
@@ -73,6 +72,130 @@ jobs:
           rm -rf Muwahid
           unzip -q "$BUNDLE_ZIP"
           test -f Muwahid/app/build.gradle
-          VERSION_NAME="$(sed -n "s/.*versionName '[^']*'.*/\1/p" Muwahid/app/build.gradle | head -1)"
-          VERSION_CODE="$(sed -n 's/.*versionCode [0-9][0-9]*.*/\1/p' Muwahid/app/build.gradle | head -1)"
-          test "$VERSION_NAME" = 
+          VERSION_NAME="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" Muwahid/app/build.gradle | head -1)"
+          VERSION_CODE="$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' Muwahid/app/build.gradle | head -1)"
+          test "$VERSION_NAME" = "$EXPECTED_VERSION_NAME"
+          test "$VERSION_CODE" = "$EXPECTED_VERSION_CODE"
+          cd Muwahid
+          sha256sum -c PROJECT_CHECKSUMS.sha256
+          bash VERIFY_PROJECT.sh
+          python3 tests/check_live_01332_two_stage.py
+          python3 tests/check_live_01332.py
+          python3 tests/check_update_alerts.py
+
+      - name: Prepare stable signing
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          MUWAHID_KEYSTORE_B64: ${{ secrets.MUWAHID_KEYSTORE_B64 }}
+          MUWAHID_KEYSTORE_PASSWORD: ${{ secrets.MUWAHID_KEYSTORE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${MUWAHID_KEYSTORE_B64:-}" ] && [ -n "${MUWAHID_KEYSTORE_PASSWORD:-}" ]; then
+            printf '%s' "$MUWAHID_KEYSTORE_B64" | base64 --decode > Muwahid/muwahid-release.jks
+            keytool -list -keystore Muwahid/muwahid-release.jks -storepass "$MUWAHID_KEYSTORE_PASSWORD" -alias muwahid >/dev/null
+            echo "MUWAHID_STABLE_SIGNING=true" >> "$GITHUB_ENV"
+          else
+            echo "MUWAHID_STABLE_SIGNING=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build debug and Android test APKs
+        env:
+          MUWAHID_KEYSTORE_PASSWORD: ${{ secrets.MUWAHID_KEYSTORE_PASSWORD }}
+        run: cd Muwahid && gradle --no-daemon assembleDebug assembleDebugAndroidTest
+
+      - name: Build signed release APK
+        if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
+        env:
+          MUWAHID_KEYSTORE_PASSWORD: ${{ secrets.MUWAHID_KEYSTORE_PASSWORD }}
+        run: cd Muwahid && gradle --no-daemon assembleRelease
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Check Muwahid on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: 'true'
+          script: |
+            set -eu
+            adb install -r Muwahid/app/build/outputs/apk/debug/app-debug.apk
+            adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > smoke-result.txt
+            cat smoke-result.txt
+            grep -F "MW_SMOKE_OK: ${EXPECTED_VERSION_NAME}" smoke-result.txt
+            mkdir -p screenshots
+            adb pull /sdcard/Android/data/com.muwahid.app/files/. screenshots/ || true
+            test -f screenshots/chat_screen.png
+            adb logcat -d -s AndroidRuntime:E > crash-log.txt || true
+            ! grep -q 'FATAL EXCEPTION' crash-log.txt || { cat crash-log.txt; exit 1; }
+
+      - name: Upload installable debug APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Muwahid-0.13.32-debug-apk
+          path: Muwahid/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: warn
+
+      - name: Upload signed APK
+        if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Muwahid-APK-0.13.32
+          path: Muwahid/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Upload device verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Muwahid-0.13.32-device-check
+          path: |
+            screenshots/
+            smoke-result.txt
+            crash-log.txt
+          if-no-files-found: warn
+
+      - name: Publish signed update
+        if: ${{ success() && github.event_name == 'workflow_dispatch' && inputs.publish == true && github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/Muwahid/app/build/outputs/apk/release/app-release.apk"
+          ASSET="Muwahid-${EXPECTED_VERSION_NAME}.apk"
+          RELEASE_APK="$GITHUB_WORKSPACE/$ASSET"
+          cp "$APK" "$RELEASE_APK"
+          SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
+          TAG="v${EXPECTED_VERSION_NAME}"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: LIVE photo/video backgrounds, universal invitations and room expiration; existing messenger features preserved."
+          gh release upload "$TAG" "$RELEASE_APK" --clobber
+          mkdir -p updates
+          jq -n \
+            --argjson versionCode "$EXPECTED_VERSION_CODE" \
+            --arg versionName "$EXPECTED_VERSION_NAME" \
+            --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
+            --arg sha256 "$SHA256" \
+            --arg notes "Новые фоны фото/видео для эфира, приглашения контактам Muwahid и через другие приложения, надёжное завершение эфира для всех. Сохранены аудиоисправления и проверка обновлений." \
+            '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
+          # Keep metadata from THIS APK, but update from the latest remote main.
+          cp updates/latest.json "$RUNNER_TEMP/muwahid-latest.json"
+          git restore --staged --worktree updates/latest.json || true
+          git fetch origin main
+          git switch -C muwahid-release-meta origin/main
+          cp "$RUNNER_TEMP/muwahid-latest.json" updates/latest.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add updates/latest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish Muwahid ${EXPECTED_VERSION_NAME} [skip ci]"
+            git push origin HEAD:main
+          fi
