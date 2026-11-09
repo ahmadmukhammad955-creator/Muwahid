@@ -1,7 +1,7 @@
 {
-  "versionCode": 68,
-  "versionName": "0.13.33",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.33/Muwahid-0.13.33.apk",
-  "sha256": "9eaf2133686c0ee6d42034b47c2001c9c4addc4936981d1ca9830af3ec9afaac",
-  "notes": "Новые фоны фото/видео для эфира, приглашения контактам Muwahid и через другие приложения, надёжное завершение эфира для всех. Сохранены аудиоисправления и проверка обновлений."
+  "versionCode": 70,
+  "versionName": "0.13.35",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.35/Muwahid-0.13.35.apk",
+  "sha256": "fc902d9712d4fc113f26802d2f5ae36a04fc9b757db1b102a94cd620c7d30a90",
+  "notes": "Гудок исходящего вызова до ответа собеседника; прекращается при ответе, отмене или отклонении. Сохранены LIVE, чаты и входящие звонки."
 }
