@@ -12,7 +12,7 @@ index cdd378f..ee6b53d 100644
      implementation 'androidx.core:core:1.15.0'
 diff --git a/app/src/androidTest/java/com/muwahid/app/LiveCryptoChecks.java b/app/src/androidTest/java/com/muwahid/app/LiveCryptoChecks.java
 new file mode 100644
-index 0000000..85d1ba9
+index 0000000..a0a44e2
 --- /dev/null
 +++ b/app/src/androidTest/java/com/muwahid/app/LiveCryptoChecks.java
 @@ -0,0 +1,69 @@
@@ -81,7 +81,7 @@ index 0000000..85d1ba9
 +        // A newly joined member cannot decrypt items sent before admission.
 +        String newcomer=UUID.randomUUID().toString();keys.put(newcomer,peers.publicKey(newcomer));
 +        LiveCrypto newcomerClient=new LiveCrypto(context,new Transport(newcomer));denied(()->newcomerClient.openMessage(room,msg));
-+        android.util.Log.i("MuwahidTest","LIVE_CRYPTO_OK: eight recipients, restart, tamper, wrong room/path/sender, changed key, removal, late join");
++        System.out.println("LIVE_CRYPTO_OK: eight recipients, restart, tamper, wrong room/path/sender, changed key, removal, late join");
 +    }
 +    static String chat(Map<String,String> chats,String a,String b){return chats.get(a.compareTo(b)<0?a+":"+b:b+":"+a);}
 +}
@@ -279,7 +279,7 @@ index dbc64a4..2573842 100644
          Cipher c = Cipher.getInstance("AES/GCM/NoPadding"); c.init(Cipher.ENCRYPT_MODE, key());
          String iv = Base64.encodeToString(c.getIV(), Base64.NO_WRAP);
 diff --git a/app/src/main/java/com/muwahid/app/VoiceRoomActivity.java b/app/src/main/java/com/muwahid/app/VoiceRoomActivity.java
-index bd54a1b..c8132a2 100644
+index bd54a1b..fa80e79 100644
 --- a/app/src/main/java/com/muwahid/app/VoiceRoomActivity.java
 +++ b/app/src/main/java/com/muwahid/app/VoiceRoomActivity.java
 @@ -30,6 +30,8 @@ public final class VoiceRoomActivity extends Activity {
@@ -291,7 +291,7 @@ index bd54a1b..c8132a2 100644
      private final ExecutorService worker=Executors.newFixedThreadPool(4);
      private final ExecutorService recorderWorker=Executors.newSingleThreadExecutor();
      private final ConcurrentHashMap<String,File> bookCache=new ConcurrentHashMap<>();
-@@ -164,6 +166,27 @@ public final class VoiceRoomActivity extends Activity {
+@@ -164,6 +166,29 @@ public final class VoiceRoomActivity extends Activity {
          }catch(Exception e){return blocked();}
      }
  
@@ -308,6 +308,8 @@ index bd54a1b..c8132a2 100644
 +    }
 +    private byte[] downloadLiveFile(String path,boolean book) throws Exception {
 +        if(path==null||!path.startsWith(roomId+"/")||path.contains(".."))throw new SecurityException("Недопустимый файл");
++        // Existing books predate message envelopes. Keep their authenticated read path.
++        if(!path.contains("/e2ee/"))return book?api.downloadRoomBook(path):api.downloadRoomMedia(path);
 +        Object value=api.rpc("mw_room_secure_media_get",new JSONObject().put("p_room",roomId).put("p_path",path));
 +        if(!(value instanceof JSONObject))throw new SecurityException("Файл недоступен");
 +        JSONObject message=(JSONObject)value;
@@ -319,7 +321,7 @@ index bd54a1b..c8132a2 100644
      private String readAsset(String name) throws Exception{
          StringBuilder b=new StringBuilder();try(BufferedReader r=new BufferedReader(new InputStreamReader(getAssets().open(name),"UTF-8"))){String line;while((line=r.readLine())!=null)b.append(line).append('\n');}return b.toString();
      }
-@@ -179,7 +202,34 @@ public final class VoiceRoomActivity extends Activity {
+@@ -179,7 +204,34 @@ public final class VoiceRoomActivity extends Activity {
          @JavascriptInterface public void rpc(String requestId,String function,String argsJson){
              if(!allowed.contains(function)){deliver(requestId,null,"Недоступная операция");return;}
              worker.execute(()->{try{
@@ -355,7 +357,7 @@ index bd54a1b..c8132a2 100644
                  if("mw_room_join".equals(function))joined=true;
                  if("mw_room_leave".equals(function)||"mw_room_end".equals(function)){
                      joined=false;
-@@ -208,7 +258,7 @@ public final class VoiceRoomActivity extends Activity {
+@@ -208,7 +260,7 @@ public final class VoiceRoomActivity extends Activity {
                  String key=sha256(path),mime=backgroundMime(path,kind);
                  File file=backgroundFiles.get(key);
                  if(file==null||!file.exists()){
@@ -364,7 +366,7 @@ index bd54a1b..c8132a2 100644
                      File directory=new File(getCacheDir(),"live_background");directory.mkdirs();
                      file=new File(directory,key+".media");
                      try(FileOutputStream out=new FileOutputStream(file)){out.write(bytes);}
-@@ -248,7 +298,7 @@ public final class VoiceRoomActivity extends Activity {
+@@ -248,7 +300,7 @@ public final class VoiceRoomActivity extends Activity {
          });}
  
          @JavascriptInterface public void openMedia(String path,String mime,String name){
@@ -373,7 +375,7 @@ index bd54a1b..c8132a2 100644
          }
  
          @JavascriptInterface public void invite(){runOnUiThread(()->{
-@@ -364,9 +414,9 @@ public final class VoiceRoomActivity extends Activity {
+@@ -364,9 +416,9 @@ public final class VoiceRoomActivity extends Activity {
          final String kind=requestCode==REQ_ROOM_IMAGE?"image":"video";
          worker.execute(()->{try{
              byte[] raw=readUri(uri,24*1024*1024);String mime=getContentResolver().getType(uri);if(mime==null)mime=kind.equals("image")?"image/jpeg":"video/mp4";
@@ -385,7 +387,7 @@ index bd54a1b..c8132a2 100644
              runOnUiThread(()->{if(web!=null)web.evaluateJavascript("window.mwRoomMediaSent&&window.mwRoomMediaSent();",null);});
          }catch(Exception e){runOnUiThread(()->toast(e.getMessage()==null?"Не удалось отправить файл":e.getMessage()));}});
      }
-@@ -395,12 +445,12 @@ public final class VoiceRoomActivity extends Activity {
+@@ -395,12 +447,12 @@ public final class VoiceRoomActivity extends Activity {
                      }finally{mmr.release();}
                  }
                  String ext=video?("video/webm".equals(mime)?".webm":".mp4"):("image/png".equals(mime)?".png":"image/webp".equals(mime)?".webp":".jpg");
@@ -401,7 +403,7 @@ index bd54a1b..c8132a2 100644
                  runOnUiThread(()->{
                      toast("Фон эфира установлен");
                      if(web!=null)web.evaluateJavascript("window.mwBackgroundPublished&&window.mwBackgroundPublished("+JSONObject.quote(path)+","+JSONObject.quote(video?"video":"image")+");",null);
-@@ -426,10 +476,12 @@ public final class VoiceRoomActivity extends Activity {
+@@ -426,10 +478,12 @@ public final class VoiceRoomActivity extends Activity {
              String name=queryDisplayName(uri);if(name==null||name.trim().isEmpty())name="Книга.pdf";name=name.trim();if(name.length()>180)name=name.substring(0,180);
              File tmp=new File(getCacheDir(),"selected_"+UUID.randomUUID()+".pdf");try(FileOutputStream out=new FileOutputStream(tmp)){out.write(raw);}
              int pages=pdfPageCount(tmp);if(pages<1)throw new Exception("PDF не содержит страниц");if(pages>5000)throw new Exception("В книге слишком много страниц");
@@ -417,7 +419,7 @@ index bd54a1b..c8132a2 100644
              final String json=result==null?"{}":result.toString();
              runOnUiThread(()->{if(web!=null)web.evaluateJavascript("window.mwBookStarted&&window.mwBookStarted("+json+");",null);});
          }catch(Exception e){runOnUiThread(()->toast(e.getMessage()==null?"Не удалось открыть книгу":e.getMessage()));}});
-@@ -470,7 +522,7 @@ public final class VoiceRoomActivity extends Activity {
+@@ -470,7 +524,7 @@ public final class VoiceRoomActivity extends Activity {
          File cached=bookCache.get(path);if(cached!=null&&cached.exists()&&cached.length()>0)return cached;
          File dir=new File(getCacheDir(),"room_books");dir.mkdirs();
          File f=new File(dir,sha256(path)+".pdf");
