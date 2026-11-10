@@ -59,6 +59,7 @@ public final class StoriesActivity extends Activity {
         }
     };
     private boolean destroyed=false;
+    private boolean checkingStoryAudience=false;
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
@@ -78,7 +79,9 @@ public final class StoriesActivity extends Activity {
     }
     private int dp(int v){return Math.round(getResources().getDisplayMetrics().density*v);}
     private int white(){return Color.WHITE;}
-    private int mutedColor(){return Color.rgb(163,179,195);}
+    private int mutedColor(){return Color.rgb(151,170,191);}
+    private int surfaceColor(){return Color.rgb(17,33,51);}
+    private int accentColor(){return Color.rgb(29,187,157);}
     private TextView text(String s,int size,int color){
         TextView t=new TextView(this);t.setText(s);t.setTextColor(color);t.setTextSize(size);
         t.setGravity(Gravity.CENTER_VERTICAL);return t;
@@ -140,10 +143,27 @@ public final class StoriesActivity extends Activity {
             }
         });
     }
+    private void applySafeInsets(FrameLayout root){
+        if(Build.VERSION.SDK_INT>=30){
+            getWindow().setDecorFitsSystemWindows(false);
+            root.setOnApplyWindowInsetsListener((v,insets)->{
+                android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars());
+                v.setPadding(0,bars.top,0,bars.bottom);
+                return insets;
+            });
+            root.requestApplyInsets();
+        }else getWindow().getDecorView().setSystemUiVisibility(0);
+    }
+    private TextView toolbarIcon(String glyph,String description){
+        TextView v=text(glyph,23,white());v.setGravity(Gravity.CENTER);
+        v.setContentDescription(description);v.setBackground(rounded(surfaceColor(),14));
+        return v;
+    }
     private void setRoot(){
         viewing=false;
         stopPlayback();
-        frame=new FrameLayout(this);frame.setBackgroundColor(Color.rgb(8,16,29));setContentView(frame);
+        frame=new FrameLayout(this);frame.setBackgroundColor(Color.rgb(8,17,30));
+        setContentView(frame);applySafeInsets(frame);
     }
     private void renderFeed(){
         if(destroyed)return;
@@ -411,7 +431,8 @@ public final class StoriesActivity extends Activity {
     }
     private void renderViewer(){
         stopPlayback();viewing=true;paused=false;
-        frame=new FrameLayout(this);frame.setBackgroundColor(Color.BLACK);setContentView(frame);
+        frame=new FrameLayout(this);frame.setBackgroundColor(Color.BLACK);
+        setContentView(frame);applySafeInsets(frame);
         mediaLayer=new FrameLayout(this);frame.addView(mediaLayer,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout top=horizontal();top.setPadding(dp(9),dp(10),dp(9),dp(5));
         TextView back=button("‹");top.addView(back);back.setOnClickListener(v->renderFeed());
