@@ -84,12 +84,13 @@ public final class StoriesActivity extends Activity {
             if(!profileChatId.isEmpty()){
                 profile=(JSONObject)api.rpc("mw_contact_profile",new JSONObject().put("p_chat",profileChatId));
             }
+            String targetPerson=personId.isEmpty()?profile.optString("id",""):personId;
             JSONObject args=new JSONObject();
-            args.put("p_person",personId.isEmpty()?JSONObject.NULL:personId);
+            args.put("p_person",targetPerson.isEmpty()?JSONObject.NULL:targetPerson);
             JSONArray entries=(JSONArray)api.rpc("mw_story_feed",args);
             final JSONObject target=profile;
             ui.post(()->{if(destroyed)return;contact=target;feed=entries;
-                if(personId.isEmpty()&&target.has("id"))personId=target.optString("id","");
+                if(personId.isEmpty())personId=targetPerson;
                 renderFeed();});
         });
     }
