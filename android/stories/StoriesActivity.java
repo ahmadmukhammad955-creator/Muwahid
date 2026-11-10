@@ -38,6 +38,7 @@ public final class StoriesActivity extends Activity {
     private TextView caption,viewerStatus;
     private ProgressBar storyProgress;
     private EditText replyInput;
+    private TextView sendAction,reactionAction;
     private MediaPlayer videoPlayer;
     private byte[] decryptedMedia;
     private int storyIndex=0;
@@ -589,8 +590,8 @@ public final class StoriesActivity extends Activity {
         replyInput.setHintTextColor(mutedColor());replyInput.setTextColor(Color.WHITE);replyInput.setTextSize(14);
         replyInput.setBackground(rounded(Color.rgb(33,43,58),23));replyInput.setPadding(dp(12),dp(8),dp(12),dp(8));
         bottom.addView(replyInput,new LinearLayout.LayoutParams(0,dp(47),1));
-        TextView send=button("➤");bottom.addView(send);send.setOnClickListener(v->sendStoryReply());
-        TextView heart=button("❤");bottom.addView(heart);heart.setOnClickListener(v->chooseReaction());
+        sendAction=button("➤");bottom.addView(sendAction);sendAction.setOnClickListener(v->sendStoryReply());
+        reactionAction=button("❤");bottom.addView(reactionAction);reactionAction.setOnClickListener(v->chooseReaction());
         FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(-1,dp(69),Gravity.BOTTOM);frame.addView(bottom,bp);
         showCurrent();
     }
@@ -599,16 +600,37 @@ public final class StoriesActivity extends Activity {
         JSONObject item=feed.optJSONObject(storyIndex);if(item==null){renderFeed();return;}
         caption.setText(item.optString("display_name","Контакт")+" · "+(storyIndex+1)+"/"+feed.length());
         boolean own=api.uid().equals(item.optString("owner_id"));
-        replyInput.setVisibility(own||!item.optBoolean("allow_replies",true)?View.GONE:View.VISIBLE);
+        boolean mayReply=!own&&item.optBoolean("allow_replies",true);
+        replyInput.setVisibility(mayReply?View.VISIBLE:View.GONE);
+        sendAction.setVisibility(mayReply?View.VISIBLE:View.GONE);
+        reactionAction.setVisibility(!own&&item.optBoolean("allow_reactions",true)?View.VISIBLE:View.GONE);
         viewerStatus.setText("Расшифровываем историю…");
+        viewerStatus.setOnClickListener(null);
         final String storyId=item.optString("id","");
         backgroundWork(()->{
-            byte[] raw=readDecryptedMedia(item);
-            ui.post(()->{if(destroyed||!viewing||(storyIndex>=feed.length()||feed.optJSONObject(storyIndex)==null||!storyId.equals(feed.optJSONObject(storyIndex).optString("id"))))return;
+            byte[] raw;
+            try{raw=readDecryptedMedia(item);}
+            catch(Exception err){
+                ui.post(()->{
+                    if(destroyed||!viewing||storyIndex>=feed.length()||
+                        !storyId.equals(feed.optJSONObject(storyIndex).optString("id")))return;
+                    viewerStatus.setText(err instanceof SecurityException
+                        ?"Ключ контакта не подтверждён. Проверьте его в чате."
+                        :"Не удалось открыть историю. Нажмите, чтобы повторить.");
+                    viewerStatus.setOnClickListener(v->showCurrent());
+                });
+                throw err;
+            }
+            ui.post(()->{
+                if(destroyed||!viewing||storyIndex>=feed.length()||
+                    !storyId.equals(feed.optJSONObject(storyIndex).optString("id"))){
+                    Arrays.fill(raw,(byte)0);return;
+                }
                 if(decryptedMedia!=null)Arrays.fill(decryptedMedia,(byte)0);
                 decryptedMedia=raw;displayMedia(item,raw);
             });
-            if(!own)api.rpc("mw_story_mark_viewed",new JSONObject().put("p_story",storyId));
+            if(!own)try{api.rpc("mw_story_mark_viewed",new JSONObject().put("p_story",storyId));}
+                catch(Exception ignored){}
         });
     }
     private byte[] readDecryptedMedia(JSONObject item) throws Exception{
