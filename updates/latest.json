@@ -1,7 +1,7 @@
 {
-  "versionCode": 72,
-  "versionName": "0.13.37",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.37/Muwahid-0.13.37.apk",
-  "sha256": "54efec58bcd0cb3e3d9661dc48731513a8d57148adc33b17d48fc15a336792e1",
-  "notes": "Поиск профилей Muwahid по QR-коду. Переключение передней и задней камер в видеозвонках."
+  "versionCode": 73,
+  "versionName": "0.13.38",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.38/Muwahid-0.13.38.apk",
+  "sha256": "c08f02373dd61e979a8950f7acb83a3df78d4a7a5cab62e8dfd55473d11bafc0",
+  "notes": "Семейные приглашения, управление сеансами, защита личной переписки и проверка подписи обновлений."
 }
