@@ -17,3 +17,7 @@ jobs:
           grep -RniE 'mw_room_signal|RTCPeerConnection|AudioTrack|AudioManager|onTrack|mic_enabled|iceServers|MediaStream|addTrack' /tmp/mw/Muwahid/app/src/main --include='*.java' --include='*.kt' | head -150 || true
           echo '--- Voice room web media code ---'
           python3 -c "import pathlib,re; p=pathlib.Path('/tmp/mw/Muwahid/app/src/main/assets/voice_room.html'); lines=p.read_text().splitlines(); print('Lines:',len(lines)); terms=re.compile('RTCPeerConnection|getUserMedia|ontrack|srcObject|createOffer|createAnswer|setRemoteDescription|addIceCandidate|signal|microphone|audio|muted|speaker|\.play\\(',re.I); [print(str(i+1)+': '+line[:1400]) for i,line in enumerate(lines) if terms.search(line)][:150]"
+          echo '--- LIVE WebRTC detailed sections ---'
+          nl -ba /tmp/mw/Muwahid/app/src/main/assets/voice_room.html | sed -n '215,252p;265,310p;685,770p'
+          echo '--- Native WebView audio setup ---'
+          nl -ba /tmp/mw/Muwahid/app/src/main/java/com/muwahid/app/VoiceRoomActivity.java | sed -n '50,115p;245,295p'
