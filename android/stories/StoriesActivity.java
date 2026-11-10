@@ -507,11 +507,32 @@ public final class StoriesActivity extends Activity {
     private void storyOptions(){
         JSONObject item=feed.optJSONObject(storyIndex);if(item==null)return;
         boolean own=item.optString("owner_id").equals(api.uid());
-        String[] options=own?new String[]{"Кто просмотрел",item.optBoolean("visible_on_profile",false)?"Убрать из профиля":"Оставить в профиле","Удалить историю"}:new String[]{"Проверить данные автора","Ответить","Поставить реакцию"};
+        String[] options=own
+            ?new String[]{"Кто просмотрел",item.optBoolean("visible_on_profile",false)?"Убрать из профиля":"Оставить в профиле","Удалить историю","Скорость видео"}
+            :new String[]{"Проверить данные автора","Ответить","Поставить реакцию","Скорость видео"};
         new AlertDialog.Builder(this).setTitle("История").setItems(options,(d,n)->{
-            if(own){if(n==0)showStoryViewers(item);else if(n==1)setPinned(item,!item.optBoolean("visible_on_profile",false));else confirmDelete(item);}
-            else{if(n==0){renderFeed();}else if(n==1){replyInput.requestFocus();((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).showSoftInput(replyInput,0);}else chooseReaction();}
+            if(own){
+                if(n==0)showStoryViewers(item);
+                else if(n==1)setPinned(item,!item.optBoolean("visible_on_profile",false));
+                else if(n==2)confirmDelete(item);
+                else showSpeedDialog();
+            }else{
+                if(n==0)renderFeed();
+                else if(n==1){replyInput.requestFocus();((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).showSoftInput(replyInput,0);}
+                else if(n==2)chooseReaction();
+                else showSpeedDialog();
+            }
         }).show();
+    }
+    private void showSpeedDialog(){
+        if(videoPlayer==null){Toast.makeText(this,"Скорость доступна для видеоисторий",Toast.LENGTH_SHORT).show();return;}
+        final float[] rates={.5f,1f,1.5f,2f};
+        final String[] names={"0,5×","1× · обычно","1,5×","2×"};
+        new AlertDialog.Builder(this).setTitle("Скорость воспроизведения")
+            .setItems(names,(d,w)->{
+                try{videoPlayer.setPlaybackParams(videoPlayer.getPlaybackParams().setSpeed(rates[w]));}
+                catch(Exception e){error(e);}
+            }).show();
     }
     private void setPinned(JSONObject story,boolean pinned){
         backgroundWork(()->{
