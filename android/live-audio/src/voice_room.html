@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>
+:root{color-scheme:dark;--bg:#06131f;--panel:#0b1d2d;--panel2:#10263a;--line:#173a52;--text:#f7fbff;--muted:#90a7bb;--mint:#18e4ba;--cyan:#12c9ef;--red:#ff3b4e}*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;overflow:hidden}body{display:flex;flex-direction:column;background:radial-gradient(circle at 55% -10%,#123d4e 0,#071726 34%,#06131f 64%)}
+header{padding:14px 14px 8px}.topBar{display:flex;align-items:center;gap:10px}.brand{display:flex;align-items:center;gap:8px;font-weight:900;font-size:17px;flex:1}.brandMark{width:34px;height:34px;border-radius:11px;background:linear-gradient(135deg,#0ee69c,#18c9f1);display:grid;place-items:center;color:#052129;font-size:20px;font-weight:1000;box-shadow:0 0 20px #11d6c755}.liveBadge{background:linear-gradient(180deg,#ff4458,#d81734);border-radius:18px;padding:7px 15px;font-size:12px;font-weight:900;box-shadow:0 0 18px #ff244d88}.more{border:0;background:transparent;color:#d7e6f4;width:36px;height:36px;font-size:26px}.title{font-size:19px;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:12px}.meta{display:flex;align-items:center;gap:12px;color:#a9bdd0;font-size:12px;margin-top:6px}.people{border:0;background:transparent;color:#25e2c2;font-size:12px;padding:0;font-weight:750}.access{color:#a9bdd0}.timer{margin-left:auto;font-variant-numeric:tabular-nums}.back{display:none}.head{display:contents}.sub{display:none}
+#banner{margin:0 14px 6px;min-height:20px;color:#7f9aae;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#banner:empty{display:none}.stage{flex:1;overflow:auto;padding:4px 12px 118px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:8px 0 6px}.seat{position:relative;min-height:156px;border-radius:17px;overflow:hidden;background:linear-gradient(145deg,#122a40,#0b1a29);border:1px solid #173a52;box-shadow:0 7px 20px #0004;display:flex;flex-direction:column;align-items:center;justify-content:center}.seat.empty{opacity:.72;min-height:126px}.seat.overflow{min-height:156px}.seat.overflow .avatar{width:62px;height:62px;background:#10263a;border-color:#173a52;font-size:22px}.seat.overflow .name{position:static;margin-top:8px;background:transparent;max-width:none}.seat.micOn{border-color:#19e2b9;box-shadow:0 0 0 1px #19e2b966,0 0 20px #0edbb455}.seat.hand{border-color:#e7bf55}.seat.blocked{opacity:.78}.seat video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#0c1d2d}.seat .avatar{width:70px;height:70px;border-radius:50%;display:grid;place-items:center;font-size:25px;font-weight:900;background:linear-gradient(145deg,#1bcfb7,#2787d9);color:#fff;border:2px solid #54e8d0;z-index:1}.seat .name,.seat .role{position:absolute;z-index:3;left:8px}.seat .name{bottom:9px;font-size:12px;font-weight:800;background:#06131fcc;padding:5px 8px;border-radius:9px;max-width:75%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.seat .role{display:none}.badge{position:absolute;z-index:4;right:7px;bottom:8px;border-radius:10px;padding:4px 6px;font-size:9px;background:#06131fcc;color:#b8cad9}.micOn .badge{color:#38f0ca}.mod{position:absolute;z-index:4;right:7px;top:7px;border-radius:9px;padding:4px 6px;background:#06131cc;color:#73e8d6;font-size:9px}.hostTag{display:none}.section{margin-top:12px;background:#0b1d2d;border:1px solid #173a52;border-radius:18px;padding:13px}.sectionTitle{font-weight:800;font-size:14px;margin-bottom:9px}.sectionTitleRow{display:flex;align-items:center;gap:8px;margin-bottom:9px}.sectionTitleRow .sectionTitle{margin:0;flex:1}.waitRow{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #173a52}.waitName{flex:1}.smallBtn,.mediaBar button,.bookBtn{border:1px solid #1a425e;border-radius:12px;background:#10263a;color:#55e8d2;padding:9px 11px;font-weight:700}.waitingHero{padding:30px 18px;text-align:center;border-radius:24px;background:#0b1d2d;border:1px solid #173a52}.waitingNum{font-size:52px;font-weight:900;color:#1be0bd}.waitingText{color:#90a7bb}.listenerList{display:grid;gap:8px}.listenerRow{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:14px;background:#10263a}.listenerAvatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:800;background:#153951;color:#29e3c4}.listenerName{flex:1}.listenerHand{color:#f4c85e;font-size:12px}
+#chatMessages{display:grid;gap:8px;max-height:280px;overflow:auto}.msg{padding:9px 11px;border-radius:15px;background:#10263a}.msg.mine{background:#0d473f}.sender{font-size:11px;font-weight:800;color:#35e5c6;margin-bottom:3px}.mediaMsg{color:#3bdcc5}.composer{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px}.composer input{height:44px;border:1px solid #173a52;border-radius:14px;background:#071827;color:#f7fbff;padding:0 12px}.send{border:0;border-radius:14px;background:linear-gradient(135deg,#12db9c,#12c9ef);color:#052129;font-weight:900;padding:0 15px}.mediaBar{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}.bookBtn.primary{background:#12c9a8;color:#04201f}.bookBtn.danger{background:#3a1521;color:#ff8295}.bookEmpty,.bookCanvas{background:#081a29;border:1px solid #173a52;border-radius:16px}.bookEmpty{padding:18px;text-align:center;color:#90a7bb}.bookMeta{display:flex;gap:8px;align-items:center}.bookName{font-weight:750;flex:1}.bookController,.pageInfo,.followRow{font-size:11px;color:#90a7bb}.bookCanvas{min-height:240px;display:flex;align-items:center;justify-content:center;overflow:hidden}.bookCanvas img{width:100%;height:auto;max-height:62vh;object-fit:contain}.bookNav{display:grid;grid-template-columns:52px 1fr 52px;gap:8px;margin-top:10px}.bookNav button{height:44px;border:0;border-radius:13px;background:#10263a;color:#32e2c4}.bookTools{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.controls{position:absolute;left:0;right:0;bottom:0;padding:10px 8px calc(12px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(auto-fit,minmax(48px,1fr));gap:4px;background:linear-gradient(transparent,#06131f 27%)}button.action{min-height:66px;border:0;background:transparent;color:#d9e7f3;font-size:10px;font-weight:750;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px}.action .ctlIcon{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:#10263a;border:1px solid #1b3c56;color:#fff}.action .ctlIcon svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.action.primary .ctlIcon,.action.on .ctlIcon{background:#11453f;border-color:#16dfb8;color:#38f2cc}.action.danger .ctlIcon{background:linear-gradient(180deg,#ff4458,#dd1836);border-color:#ff5a69}.action.blocked{opacity:.62}.hidden{display:none!important}
+#sheetWrap,#toolWrap{position:fixed;inset:0;background:#000a;display:none;align-items:flex-end;z-index:8}#sheet,#toolSheet{width:100%;max-height:84vh;overflow:auto;background:#0a1a28;color:#f7fbff;border:1px solid #173a52;border-radius:24px 24px 0 0;padding:18px 16px calc(28px + env(safe-area-inset-bottom))}.sheetTitle{font-size:18px;font-weight:800;margin-bottom:12px}.sheetBtns{display:grid;gap:9px}.sheetBtns button{min-height:52px;border:1px solid #173a52;border-radius:15px;background:#10263a;color:#eef8ff}.sheetBtns .danger{background:#3a1521;color:#ff8b9a}.sheetBtns .cancel{background:#101d28;color:#99adbd}.participantLine{padding:11px 12px;border-radius:14px;background:#10263a;display:flex;gap:8px;align-items:center}.participantName{flex:1;font-weight:700}.participantRole{font-size:12px;color:#90a7bb}.toolGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 8px}.toolItem{border:0;background:transparent;color:#d9e7f3;text-align:center;font-size:11px}.toolIcon{width:58px;height:58px;border-radius:18px;background:#10263a;border:1px solid #173a52;display:grid;place-items:center;margin:0 auto 7px}.toolIcon svg{width:28px;height:28px;fill:none;stroke:#26e0c2;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.toolSection{margin-top:18px}.toolSectionTitle{font-size:14px;font-weight:850}.toolClose{float:right;border:0;background:transparent;font-size:28px;color:#b0c1d0}.panelCard{background:#10263a;border-radius:16px;padding:13px;margin:9px 0}.panelRow{display:flex;align-items:center;gap:10px;margin:10px 0}.panelRow label{flex:1}.chipGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.chip{border:1px solid #173a52;border-radius:12px;background:#10263a;color:#d9e7f3;min-height:44px;padding:7px;font-weight:700;font-size:12px}.chip.active{background:#0e4a42;color:#45f0cf;border-color:#15dcb8}.recordingDot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#ff3b4e;margin-right:6px;animation:pulse 1s infinite}@keyframes pulse{50%{opacity:.3}}.remoteAudio,#musicAudio{display:none}
+
+/* LIVE voice controls remain reachable on smaller phones. */
+.audioHelp{display:flex;gap:9px;align-items:center;justify-content:space-between;margin:2px 12px 7px;padding:9px 12px;border:1px solid #426070;background:#162332;border-radius:13px;color:#e3eef9;font-size:12px;line-height:1.35}.audioHelp.hidden{display:none!important}.audioHelp>span{flex:1;min-width:0}.audioHelp button{flex-shrink:0;min-height:42px;border:1px solid #46d6bd;border-radius:10px;background:#165349;color:#fff;padding:8px;font-size:12px;font-weight:700}
+/* Modern live layout, preserving audio/video state and native bridge. */
+:root{--bg:#0b1118;--panel:#151e29;--panel2:#202d3b;--line:#ffffff14;--text:#f1f5fa;--muted:#a7b5c7;--mint:#63e6c6}
+body{background:radial-gradient(ellipse at 80% 0%,#163b3b66,transparent 48%),var(--bg)}
+header{padding:18px 16px 12px;flex-shrink:0}.brand{font-weight:800;letter-spacing:-.4px}.brandMark{background:#63e6c6;color:#123b32;box-shadow:none;border-radius:12px}.liveBadge{background:#402632;color:#ffb5c4;box-shadow:none;border:1px solid #ffb5c422;letter-spacing:1px}.more{min-width:44px;min-height:44px;background:#ffffff08;border-radius:14px}.title{margin-top:16px;font-size:22px;letter-spacing:-.5px}.meta{gap:10px;flex-wrap:wrap;line-height:1.6}.people{min-height:44px;color:var(--mint)}
+#banner{margin:0 16px 10px;padding:10px 12px;white-space:normal;line-height:1.5;background:#151e29;border:1px solid var(--line);border-radius:14px;color:var(--muted);flex-shrink:0}.stage{min-height:0;padding:0 16px 24px;overscroll-behavior:contain}.grid.compact-grid .seat{min-height:112px}.grid.compact-grid .seat.empty{min-height:96px}.grid.compact-grid .seat .avatar{width:48px;height:48px;font-size:17px}.grid.compact-grid .seat .name{font-size:10px;padding:4px 6px;left:4px;bottom:4px}.grid.compact-grid .seat video{border-radius:16px}.grid{gap:12px}.seat{border-radius:22px;border-color:var(--line);background:linear-gradient(145deg,#1b2835,#131c27);box-shadow:none;min-height:174px}.seat.empty{background:#ffffff03;border-style:dashed;opacity:.5}.seat .avatar{background:linear-gradient(140deg,#b0f5df,#5bafc1);color:#123b42;border-color:#ffffff20}.seat.micOn{border-color:var(--mint);box-shadow:0 0 0 2px #63e6c619}.seat .name{background:#0b1118cc;padding:6px 9px;border-radius:10px}.seat video{border-radius:21px}.section{border-color:var(--line);border-radius:22px;padding:16px;background:var(--panel)}.listenerRow,.msg{background:#ffffff06}.msg{overflow-wrap:anywhere;line-height:1.5}.composer input{min-width:0;font-size:16px;background:#0e1721}.controls{position:relative;left:auto;right:auto;bottom:auto;flex-shrink:0;background:#101923;border-top:1px solid var(--line);padding-bottom:calc(12px + env(safe-area-inset-bottom))}button{font-family:inherit;touch-action:manipulation}button.action{min-height:56px;border-radius:16px}button:focus-visible,input:focus-visible{outline:2px solid var(--mint);outline-offset:3px}button:disabled{opacity:.45}
+@media(min-width:700px){header,#banner,.stage{max-width:920px;width:100%;margin-left:auto;margin-right:auto}.grid{grid-template-columns:repeat(4,minmax(0,1fr))}.seat{min-height:210px}}
+@media(max-width:350px){header{padding:12px}.stage{padding-left:10px;padding-right:10px}.grid{gap:8px}.seat{min-height:150px}.title{font-size:19px}.controls{gap:4px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+
+/* Photo/video background shown to every participant; controls stay above it. */
+#liveBackground{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0;background:#06131f}
+#liveBackground img,#liveBackground video{width:100%;height:100%;object-fit:cover;opacity:.35}
+header,main,.audioHelp,.controls{position:relative;z-index:1}
+.controls{position:absolute}
+.stage .seat{background-color:#102030b8}
+#sheetWrap,#toolWrap{z-index:8}
+
+/* Muwahid LIVE Studio 2026: design applies to the actual embedded WebView, not the launcher. */
+:root{--bg:#080c1c;--panel:#121628;--panel2:#1a1c32;--line:#393047;--text:#f7f5ff;--muted:#ada9c6;--mint:#b778ff}
+html,body{background:#080c1c!important;color:var(--text)}
+body{background:radial-gradient(circle at 50% 100%,#28133066,transparent 46%),#080c1c!important}
+header{width:100%;padding:16px 16px 8px;max-width:none!important}
+.topBar{gap:9px}.studioBack{flex:none;min-width:42px;min-height:44px;border:0;background:transparent;color:#fff;font-size:37px;line-height:1}
+.topBar .brand{font-size:23px;letter-spacing:-.8px;font-weight:850;color:#d4bdff;min-width:0}
+.topBar .people{padding:9px 12px;min-height:40px;border-radius:24px;background:#1a1a2f;border:1px solid #36324d;color:#f9f6ff;font-size:13px;min-width:56px}
+.topBar .more{color:#fff;background:#171629;border-radius:50%;width:40px;height:40px;font-size:24px}
+header .title{font-size:18px;letter-spacing:-.3px;margin-top:6px;padding:0 6px}
+header .meta{margin-top:4px;padding:0 6px;color:#b1adc6}
+header .liveBadge{font-size:10px;letter-spacing:.6px;padding:4px 9px;background:#e52f45;border:0;color:white;border-radius:9px}
+header .timer{color:#e6d9ff}
+#banner{margin:2px 17px 6px;max-width:none;background:transparent;border:0;color:#d4b9ff;font-size:11px;padding:2px 4px;min-height:14px}
+#banner:empty{display:none}
+.audioHelp{border:1px solid #52486b;background:#1b1930;color:#f2ebff;margin:4px 17px 6px;border-radius:14px;flex-shrink:0}
+.audioHelp button{background:#522888;border-color:#ad82fa;color:white}
+.stage{width:100%;max-width:none!important;flex:1;min-height:0;padding:0 15px 9px!important;overflow-y:auto!important}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px;padding:5px 0 8px}
+.grid .seat,.grid.compact-grid .seat{min-height:clamp(124px,21vh,192px);border-radius:20px;border:1px solid #363047;opacity:1;background:linear-gradient(145deg,#181b2c,#101424);box-shadow:none}
+.grid .seat.empty,.grid.compact-grid .seat.empty{min-height:clamp(124px,21vh,192px);border-style:solid;opacity:.72;background:linear-gradient(145deg,#1a1c30,#131525)}
+.grid .seat .avatar,.grid.compact-grid .seat .avatar{width:65px;height:65px;font-size:23px;background:linear-gradient(140deg,#aa92d0,#777ba9);border:1px solid #9e8aca;color:#101328}
+.grid .seat.empty .avatar{background:#272942;border-color:#302b49;color:#8b83a8}
+.grid .seat .name,.grid.compact-grid .seat .name{left:11px;bottom:11px;right:auto;max-width:80%;font-size:12px;font-weight:650;background:transparent;padding:0;color:white}
+.grid .seat.empty .name,.grid.compact-grid .seat.empty .name{color:#a6a0bb}
+.grid .seat .role.hostRole{display:block;top:8px;left:9px;bottom:auto;color:#ffe3a0;font-size:11px;font-weight:750;background:#151420c9;border-radius:9px;padding:4px 7px}
+.grid .seat.micOn{border-color:#a552fd;box-shadow:0 0 0 1px #a552fd88}
+.grid .seat .badge{right:10px;bottom:8px;color:#fa566b;background:none;font-size:15px}
+.grid .seat.micOn .badge{color:#55e27d}
+.grid .seat video,.grid.compact-grid .seat video{border-radius:19px}
+.controls,.controls[style]{position:relative!important;left:auto;right:auto;bottom:auto;background:linear-gradient(#0b0c1c,#100a23);display:flex;flex-direction:column;flex-shrink:0;gap:10px;padding:10px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid #242037}
+.primaryActions{display:flex;align-items:stretch;justify-content:space-around;gap:3px;width:100%}
+.primaryActions button.action{flex:1;min-width:0;max-width:112px;min-height:76px;font-size:10px;gap:5px;color:#f8f3ff}
+.primaryActions .action .ctlIcon{width:44px;height:44px;background:#252437;border:1px solid #333147;border-radius:15px;color:white}
+.primaryActions .action .ctlIcon svg{height:22px;width:22px}
+.primaryActions .action.on .ctlIcon{background:#512879;border-color:#ac5bff;color:#fff}
+.primaryActions .action.blocked .ctlIcon{opacity:.5}
+.endLive{display:block;align-self:center;width:min(78%,330px);min-height:54px;border:0;border-radius:30px;background:#e53647;color:white;font-size:17px;font-weight:800}
+#sheet,#toolSheet{background:#111126;border:1px solid #38314c}
+.sheetBtns button,.chip,.panelCard{border-color:#363047;background:#222037;color:#f7f3ff}
+.toolIcon{background:#2a203c;border-color:#473258}.toolIcon svg{stroke:#bb8bfa}
+.video-room .seat video{object-fit:cover}
+@media(min-width:700px){.stage{max-width:900px!important}.grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.grid .seat{min-height:170px}}
+@media(max-height:660px){.grid .seat,.grid.compact-grid .seat{min-height:132px}.controls{padding-top:5px;gap:4px}.primaryActions button.action{min-height:62px}.endLive{min-height:46px}}
+
+/* Shared reading is an ordinary collapsible panel, never a blocking dialog. */
+.readingHead{position:sticky;top:0;z-index:3;background:#151628;border-radius:12px;padding:5px 0;min-height:48px}
+.readingClose{display:inline-flex;align-items:center;justify-content:center;min-width:78px;min-height:44px;padding:8px 12px;border:1px solid #76638e;border-radius:12px;background:#28203d;color:#fff;font-size:13px;font-weight:800;cursor:pointer}
+.readingClose:focus-visible{outline:2px solid #c5a0ff;outline-offset:2px}
+/* The active room preset must override the hard-coded legacy purple studio styles. */
+body.room-theme-active .grid .seat,
+body.room-theme-active .grid.compact-grid .seat,
+body.room-theme-active .grid .seat.empty {background:var(--room-seat-bg)!important;}
+body.room-theme-active #liveBackground{opacity:1;}
+#serverNotice{margin:0 14px 8px;padding:8px 12px;font-size:12px;line-height:1.4;color:#dce6ff;border-radius:12px;background:#293453d9;border:1px solid #5671a17a;white-space:normal}#serverNotice.hidden{display:none}
+
+/* Voice-only eight-seat circle: the actual peers stay in their assigned seat. */
+#grid.round-8{position:relative;display:block!important;grid-template-columns:none!important;aspect-ratio:1/1;width:min(100%,420px);margin:6px auto 12px;padding:0!important;isolation:isolate}
+#grid.round-8:before{content:'';position:absolute;inset:12%;border:1px solid #ae7be135;border-radius:50%;pointer-events:none;background:radial-gradient(circle,#74419f24 0%,transparent 63%)}
+#grid.round-8 .seat,#grid.round-8.compact-grid .seat{position:absolute;display:flex;top:50%;left:50%;width:25%;height:26%;min-height:0!important;max-height:none!important;box-sizing:border-box;padding:4px;transform:translate(-50%,-50%);border:1px solid #635579;border-radius:18px;overflow:hidden;justify-content:center;gap:2px;transition:border-color .14s,box-shadow .14s,background .14s}
+#grid.round-8 .seat.empty{border-style:dashed;opacity:.65}
+#grid.round-8 .seat[data-seat="1"]{left:50%;top:15%}
+#grid.round-8 .seat[data-seat="2"]{left:76%;top:24%}
+#grid.round-8 .seat[data-seat="3"]{left:87%;top:50%}
+#grid.round-8 .seat[data-seat="4"]{left:76%;top:76%}
+#grid.round-8 .seat[data-seat="5"]{left:50%;top:85%}
+#grid.round-8 .seat[data-seat="6"]{left:24%;top:76%}
+#grid.round-8 .seat[data-seat="7"]{left:13%;top:50%}
+#grid.round-8 .seat[data-seat="8"]{left:24%;top:24%}
+#grid.round-8 .seat .avatar,#grid.round-8.compact-grid .seat .avatar{width:52%;height:auto;aspect-ratio:1;max-height:58%;border-radius:50%;font-size:clamp(13px,4vw,19px);flex-shrink:0}
+#grid.round-8 .seat .name,#grid.round-8.compact-grid .seat .name{position:static;max-width:100%;padding:0 2px;font-size:clamp(9px,2.55vw,11px);line-height:1.12;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff;background:transparent}
+#grid.round-8 .seat .role,#grid.round-8 .seat .mod{display:none}
+#grid.round-8 .seat .badge{top:6px;bottom:auto;right:6px;width:9px;height:9px;padding:0;font-size:0;background:#b65869;border-radius:50%}
+#grid.round-8 .seat.micOn .badge{background:#43e1a4}
+#grid.round-8 .seat.speaking{border-color:var(--live-speaker-glow,#c18aff)!important;box-shadow:0 0 0 2px var(--live-speaker-glow,#c18aff),0 0 18px var(--live-speaker-glow,#c18aff)!important;z-index:2}
+#grid.round-8 .seat.speaking .avatar{box-shadow:0 0 0 3px var(--live-speaker-glow,#c18aff);animation:liveSpeakerGlow 1.15s ease-in-out infinite alternate}
+@keyframes liveSpeakerGlow{to{filter:brightness(1.25);box-shadow:0 0 0 5px var(--live-speaker-glow,#c18aff)}}
+#grid.round-8 .centralMic{position:absolute;left:50%;top:50%;width:29%;height:29%;transform:translate(-50%,-50%);border-radius:50%;z-index:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;border:1px solid #9272c9;background:radial-gradient(circle at 30% 15%,#5b417d,#251a3f 76%);color:#f5eaff;box-shadow:0 0 25px #b778ff2b;cursor:pointer}
+#grid.round-8 .centralMic svg{width:32%;height:35%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#grid.round-8 .centralMic .micText{font-size:clamp(9px,2.5vw,12px);font-weight:800;text-align:center;line-height:1.1}
+#grid.round-8 .centralMic .micSpeaker{max-width:90%;font-size:clamp(8px,2vw,10px);text-overflow:ellipsis;white-space:nowrap;overflow:hidden;color:#dcbaff;line-height:1.2}
+#grid.round-8 .centralMic:focus-visible{outline:2px solid #fff;outline-offset:4px}
+#grid.round-8 .centralMic.active-speaker{border-color:var(--live-speaker-glow,#c18aff);box-shadow:0 0 0 2px var(--live-speaker-glow,#c18aff),0 0 22px #b778ff8a}
+@media(prefers-reduced-motion:reduce){#grid.round-8 .seat.speaking .avatar{animation:none}}
+
+
+/* v0.13.33 default LIVE studio polish: does not override room presets/media. */
+body:not(.room-theme-active){background:linear-gradient(155deg,#0b2132 0%,#091725 45%,#07111d 100%)!important}
+body:not(.room-theme-active) #liveBackground{background:radial-gradient(ellipse at 12% 12%,#12647e33 0,transparent 50%),radial-gradient(ellipse at 86% 80%,#147b7350 0,transparent 54%),#071521}
+body:not(.room-theme-active) .grid .seat.empty{background:linear-gradient(155deg,#162b3b 0%,#112232 65%,#101c2c 100%)!important;border:1px solid #355065;opacity:.94}
+body:not(.room-theme-active) .grid .seat.empty .avatar{background:#183449;border-color:#3b7183;color:#d4e8f0}
+body:not(.room-theme-active) .grid .seat.empty .name{color:#c9dce8;font-weight:650}
+body:not(.room-theme-active) .controls{background:linear-gradient(#0a1521,#09131d)}
+</style>
+</head>
+<body>
+<div id="liveBackground" aria-hidden="true"><img id="liveBackgroundImage" class="hidden" alt=""><video id="liveBackgroundVideo" class="hidden" autoplay muted loop playsinline preload="auto"></video></div>
+<script>/*__MW_INIT__*/</script>
+<header>
+  <div class="topBar"><button class="studioBack" aria-label="Выйти из эфира" onclick="requestExitRoom()">‹</button><div class="brand">LIVE Студия</div><button class="people" id="participantsBtn" onclick="openParticipants()" aria-label="Участники">0/8</button><button class="more" aria-label="Другие инструменты" onclick="openTools()">⋮</button></div>
+  <div class="title" id="title"></div>
+  <div class="meta"><span class="liveBadge">LIVE</span><span class="access" id="accessLabel">Открытый</span><span class="timer" id="liveTimer">00:00:00</span></div>
+  <div class="sub" id="count"></div>
+</header>
+<div id="serverNotice" role="note" class="hidden"></div>
+<div id="banner" role="status" aria-live="polite">Подключаем эфир…</div>
+<div id="audioHelp" class="audioHelp hidden" role="status" aria-live="polite"><span id="voiceHealth">Подготовка звука…</span><button id="audioActivateBtn" onclick="activateAudio()">▶ Включить звук</button></div>
+<main class="stage">
+  <div id="waitingHero" class="waitingHero hidden">
+    <div>Зал ожидания</div><div id="waitingNumber" class="waitingNum">1</div>
+    <div class="waitingText">Запрос отправлен. Вы можете видеть участников комнаты. На место вас поднимет модератор.</div>
+  </div>
+  <div id="roomContent">
+    <div class="grid" id="grid"></div>
+    <div id="listenersBox" class="section auxiliary hidden"><div class="sectionTitle">Слушатели · <span id="listenersCount">0</span></div><div id="listenersList" class="listenerList"></div></div>
+    <div id="waitingBox" class="section auxiliary hidden"><div class="sectionTitle">Зал ожидания · <span id="waitingCount">0</span></div><div id="waitingList"></div></div>
+
+    <div class="section auxiliary hidden" id="bookSection">
+      <div class="sectionTitleRow readingHead"><div class="sectionTitle">Совместное чтение</div><button id="openBookBtn" class="bookBtn primary hidden" onclick="MuwahidNative.pickBook()">Показать книгу</button><button id="closeReadingBtn" type="button" class="readingClose" aria-label="Закрыть панель совместного чтения" onclick="closeBookPanel()">✕ Закрыть</button></div>
+      <div id="bookEmpty" class="bookEmpty">Сейчас книга не открыта.</div>
+      <div id="bookViewer" class="hidden">
+        <div class="bookMeta"><div><div id="bookName" class="bookName"></div><div id="bookController" class="bookController"></div></div></div>
+        <div class="bookCanvas"><div id="bookLoading" class="bookLoading">Загружаем страницу…</div><img id="bookImage" class="hidden" alt="Страница книги"></div>
+        <div class="bookNav"><button id="bookPrev" onclick="changeBookPage(-1)">‹</button><div id="bookPageInfo" class="pageInfo"></div><button id="bookNext" onclick="changeBookPage(1)">›</button></div>
+        <label id="followRow" class="followRow"><input id="followBook" type="checkbox" checked onchange="toggleFollowBook()"> Следовать за ведущим</label>
+        <div class="bookTools"><button id="transferBookBtn" class="bookBtn hidden" onclick="openBookControlSheet()">Передать управление</button><button id="stopBookBtn" class="bookBtn danger hidden" onclick="stopBook()">Закрыть книгу</button></div>
+      </div>
+    </div>
+
+    <div class="section auxiliary hidden" id="chatSection"><div class="sectionTitle">Чат комнаты</div><div id="chatMessages"></div><div class="composer"><input id="chatInput" maxlength="4000" placeholder="Сообщение…"><button class="send" onclick="sendChat()">➤</button></div><div class="mediaBar"><button onclick="MuwahidNative.pickMedia('image')">Фото</button><button onclick="MuwahidNative.pickMedia('video')">Видео</button></div></div>
+  </div>
+</main>
+<div id="remoteAudios"></div>
+<div id="controls" class="controls">
+  <div class="primaryActions">
+    <button class="action primary" id="mic" onclick="micAction()"><span class="ctlIcon"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6"/></svg></span><span id="micLabel">Микрофон</span></button>
+    <button class="action" id="cameraBtn" onclick="cameraAction()"><span class="ctlIcon"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="3"/><path d="M16 10l5-3v10l-5-3z"/></svg></span><span>Камера</span></button>
+    <button class="action" id="participantsAction" onclick="openParticipants()"><span class="ctlIcon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20c1-4 3-6 6-6s5 2 6 6M14 16c3-1 6 1 7 4"/></svg></span><span>Участники</span></button>
+    <button class="action" id="chatAction" type="button" aria-controls="chatSection" aria-expanded="false" aria-pressed="false" onclick="toolComments()"><span class="ctlIcon"><svg viewBox="0 0 24 24"><path d="M4 5h16v12H9l-5 3z"/><path d="M8 10h8M8 13h5"/></svg></span><span>Чат</span></button>
+    <button class="action" id="moreAction" onclick="openTools()"><span class="ctlIcon"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></span><span>Ещё</span></button>
+  </div>
+  <button class="endLive" id="exitRoomBtn" onclick="requestExitRoom()">Завершить эфир</button>
+  <button class="hidden" id="speakerBtn" onclick="speakerAction()"><span>Динамик</span></button>
+  <button class="hidden" id="inviteBtn" onclick="inviteRoom()"><span>Пригласить</span></button>
+  <button class="hidden" id="hand" onclick="toggleHand()"></button>
+</div>
+<div id="sheetWrap" onclick="if(event.target===this)closeSheet()"><div id="sheet"><div class="sheetTitle" id="sheetTitle"></div><div class="sheetBtns" id="sheetBtns"></div></div></div>
+<div id="toolWrap" onclick="if(event.target===this)closeTools()"><div id="toolSheet"><button class="toolClose" onclick="closeTools()">×</button><div class="sheetTitle" id="toolTitle">Инструменты комнаты</div><div id="toolBody"></div></div></div>
+<audio id="musicAudio" crossorigin="anonymous" preload="auto"></audio>
+<script>
+const S=window.MW;const IS_VIDEO=S.roomMode==='video';document.body.classList.toggle('video-room',IS_VIDEO);
+document.getElementById('title').textContent=S.roomTitle||'LIVE';document.getElementById('accessLabel').textContent=S.roomAccess==='closed'?'🔒 Закрытый':'Открытый';
+setInterval(()=>{const sec=Math.max(0,Math.floor((Date.now()-roomOpenedAt)/1000)),h=String(Math.floor(sec/3600)).padStart(2,'0'),m=String(Math.floor((sec%3600)/60)).padStart(2,'0'),ss=String(sec%60).padStart(2,'0');const t=document.getElementById('liveTimer');if(t)t.textContent=h+':'+m+':'+ss;},1000);
+const pending={};
+let stateData=null,lastSignal=0,closed=false,stateTimer=null,signalTimer=null,messageTimer=null,bookTimer=null,localStream=null,lastMessage=0;
+let stateBusy=false,signalBusy=false,messageBusy=false,bookBusy=false,lastRenderKey='',lastPeerKey='';
+let bookState={active:false},lastBookKey='',localBookPage=0,followBook=true,lastBookImageKey='';
+const pcs={},iceQueue={},levelNodes={},remoteStreams={};
+let audioCtx=null,levelLoop=false,lastLevelFrame=0;
+let micStream=null,mixDest=null,recordDest=null,micSource=null,micGainNode=null,micBus=null,outGain=null,previewGain=null,localInit=null;
+let eqLow=null,eqMid=null,eqHigh=null,voiceHP=null,voiceLP=null,micComp=null,fxDry=null,fxDelay=null,fxFeedback=null,fxWet=null,fxReverb=null,fxReverbWet=null;
+let musicAudio=document.getElementById('musicAudio'),musicSource=null,musicGainNode=null,musicMonitor=null,musicName='Музыка не выбрана';
+let sfxBus=null,sfxMonitor=null,currentEq='none',currentFx='original',currentVoice='normal',fxEnabled=true,micVolume=1,previewMic=false;
+let roomRecorder=null,recordingSession='',recordChunkQueue=Promise.resolve(),recordStartedAt=0,recordStopResolve=null,roomOpenedAt=Date.now(),cameraOn=IS_VIDEO,speakerOn=true;
+let audioActivated=false,playbackBlocked=false,rtcProblem='',lastRtcProblemAt=0;
+let selectedBackgroundPath='',lastBackgroundMessage=0;
+window.mwBackgroundPublished=(path,kind)=>{if(!closed)loadLiveBackground(path,kind);};
+window.mwBackgroundReady=(url,kind,path)=>{
+  if(closed||selectedBackgroundPath!==path)return;
+  const img=document.getElementById('liveBackgroundImage'),video=document.getElementById('liveBackgroundVideo');
+  img.classList.add('hidden');video.classList.add('hidden');video.pause();video.removeAttribute('src');video.load();
+  if(kind==='image'){img.src=url;img.classList.remove('hidden');}
+  else{video.src=url;video.classList.remove('hidden');video.play().catch(()=>banner('Нажмите на экран эфира для запуска видеофона'));}
+};
+function loadLiveBackground(path,kind){
+  if(!path||!['image','video'].includes(kind)||!path.startsWith(S.roomId+'/background/'))return;
+  if(path===selectedBackgroundPath)return;
+  selectedBackgroundPath=path;
+  try{MuwahidNative.cacheBackground(path,kind);}catch(e){banner('Ошибка загрузки фона');}
+}
+function applyBackgroundMessage(m){
+  if(m?.media?.live_background!==true||!stateData||m.sender_id!==stateData.created_by)return;
+  if(Number(m.id)<=lastBackgroundMessage)return;
+  lastBackgroundMessage=Number(m.id);
+  loadLiveBackground(m.media.path,m.kind);
+}
+function reportRtcProblem(message){rtcProblem=message;lastRtcProblemAt=Date.now();console.warn('Muwahid LIVE WebRTC:',message);updateAudioHealth();}
+function lockedAudioHealth(){return !audioActivated||audioCtx?.state!=='running'||playbackBlocked;}
+function updateAudioHealth(){
+  const box=document.getElementById('audioHelp'),label=document.getElementById('voiceHealth'),btn=document.getElementById('audioActivateBtn');
+  if(!box||!label||!btn)return;
+  if(!stateData||stateData.waiting){box.classList.add('hidden');return;}
+  const others=(stateData.members||[]).filter(m=>m.id!==stateData.self_id),connected=others.filter(m=>pcs[m.id]?.connectionState==='connected').length;
+  // A connected microphone icon does NOT mean a connected media path.
+  box.classList.toggle('hidden',!lockedAudioHealth()&&!rtcProblem&&(!others.length||connected===others.length));
+  const me=(stateData.members||[]).find(m=>m.id===stateData.self_id);
+  const locked=!audioActivated||audioCtx?.state!=='running'||playbackBlocked;
+  btn.classList.toggle('hidden',!locked);
+  if(locked){label.textContent='Звук не активирован. Нажмите «Включить звук», затем «Микрофон», чтобы говорить.';}
+  else if(others.length&&connected===0){label.textContent=rtcProblem&&Date.now()-lastRtcProblemAt<30000?'Звук: '+rtcProblem:'Соединяем звук между участниками… Если нет связи, попробуйте Wi-Fi вместо мобильного интернета.';}
+  else if(!me?.mic_enabled){label.textContent=others.length?`Звук включён · слышно ${connected} из ${others.length} · ваш микрофон выключен`:'Звук включён · нажмите «Микрофон», чтобы говорить';}
+  else{label.textContent=others.length?`Микрофон включён · аудиосвязь ${connected} из ${others.length}`:'Микрофон включён · ждём участников';}
+}
+async function activateAudio(){
+  // Explicit click is required by WebView's Web Audio / HTMLMediaElement autoplay policies.
+  audioActivated=true;
+  try{
+    const ctx=getAudioContext();if(!ctx)throw new Error('Аудиодвижок недоступен');
+    const resume=ctx.state==='running'?Promise.resolve():ctx.resume();
+    // Start each playback on the same user gesture. Never wait for remote tracks
+    // to produce audio: play() can remain pending until the peer actually connects.
+    playbackBlocked=false;
+    for(const a of document.querySelectorAll('#remoteAudios audio')){
+      a.muted=false;a.volume=1;a.play().catch(()=>{playbackBlocked=true;reportRtcProblem('Воспроизведение заблокировано. Нажмите «Включить звук».');});
+    }
+    await resume;
+    if(ctx.state!=='running')throw new Error('Звук заблокирован Android WebView. Нажмите «Включить звук» ещё раз.');
+    updateOutgoingAudioTracks();
+    rtcProblem='';
+  }catch(e){audioActivated=false;reportRtcProblem(e.message||'Не удалось запустить звук');banner(e.message||'Не удалось запустить звук');}
+  updateAudioHealth();
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)updateAudioHealth();});
+
+window.mwResult=(id,json,err)=>{const p=pending[id];if(!p)return;delete pending[id];clearTimeout(p.timer);try{err?p.reject(new Error(err)):p.resolve(json===null?null:JSON.parse(json));}catch(e){p.reject(e);}};
+function rpc(fn,args={}){
+  return new Promise((resolve,reject)=>{
+    const id=Math.random().toString(36).slice(2)+Date.now();
+    // Never leave an ongoing LIVE action indefinitely blocked by a lost callback.
+    const timer=setTimeout(()=>{delete pending[id];reject(new Error('Сервер LIVE не отвечает. Повторите попытку.'));},15000);
+    pending[id]={resolve,reject,timer};
+    try{MuwahidNative.rpc(id,fn,JSON.stringify(args));}
+    catch(e){clearTimeout(timer);delete pending[id];reject(e);}
+  });
+}
+function banner(t){document.getElementById('banner').textContent=t||'';}
+function roleName(r){return r==='owner'?'Владелец':r==='host'?'Ведущий':r==='moderator'?'Модератор':r==='waiting'?'Ожидание':'Участник';}
+function initials(n){return (n||'M').trim().slice(0,1).toUpperCase()||'M';}
+function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function scheduleState(delay=900){clearTimeout(stateTimer);if(closed)return;stateTimer=setTimeout(async()=>{await refreshState();scheduleState(900);},delay);}
+function signalDelay(){if(closed||!stateData||stateData.waiting)return 500;const ids=(stateData.members||[]).map(x=>x.id).filter(x=>x!==stateData.self_id);if(!ids.length)return 500;let ready=0;for(const id of ids){const pc=pcs[id];if(pc&&(pc.connectionState==='connected'||pc.iceConnectionState==='connected'||pc.iceConnectionState==='completed'))ready++;}return ready===ids.length?1000:220;}
+function scheduleSignals(delay=60){clearTimeout(signalTimer);if(closed)return;signalTimer=setTimeout(async()=>{await pollSignals();scheduleSignals(signalDelay());},delay);}
+function scheduleMessages(delay=1800){clearTimeout(messageTimer);if(closed)return;messageTimer=setTimeout(async()=>{await pollMessages();scheduleMessages(1800);},delay);}
+function scheduleBook(delay=900){clearTimeout(bookTimer);if(closed)return;bookTimer=setTimeout(async()=>{await refreshBookState();scheduleBook(bookState?.active?650:1800);},delay);}
+
+async function start(){
+  let didJoin=false;
+  try{MuwahidNative.setSpeaker(true);
+    const joined=await rpc('mw_room_join',{p_room:S.roomId});didJoin=true;
+    await refreshState(true);
+    await refreshLiveConfig();
+    await syncRoomTheme();
+    if(!roomThemeSyncTimer)roomThemeSyncTimer=setInterval(syncRoomTheme,roomThemePollMs);
+    if(!liveConfigTimer)liveConfigTimer=setInterval(refreshLiveConfig,45000);
+    if(joined){await pollMessages();await refreshBookState(true);
+      // The server RPC restores the last chosen background even after >50 chat messages.
+      try{const bg=await rpc('mw_room_background_get',{p_room:S.roomId});
+        if(bg?.path&&Number(bg.id)>lastBackgroundMessage){lastBackgroundMessage=Number(bg.id);loadLiveBackground(bg.path,bg.kind);}
+      }catch(e){/* Compatible with servers awaiting the optional background RPC deployment. */}
+    }
+    scheduleState(900);scheduleSignals(40);scheduleMessages(1800);scheduleBook(800);
+  }catch(e){
+    banner(e.message||'Не удалось войти в комнату');
+    if((e.message||'').includes('закрыт')||(e.message||'').includes('не существует')){
+      alert('Эфир завершён. Эта ссылка больше не действует.');
+    }
+    if(didJoin)await Promise.race([rpc('mw_room_leave',{p_room:S.roomId}).catch(()=>{}),new Promise(r=>setTimeout(r,2200))]);
+    setTimeout(()=>MuwahidNative.close(),350);
+  }
+}
+
+async function refreshState(force=false){
+  if(closed||stateBusy)return;stateBusy=true;
+  try{
+    const d=await rpc('mw_room_state',{p_room:S.roomId});const wasWaiting=!!stateData?.waiting;stateData=d;
+    const renderKey=JSON.stringify(d);if(force||renderKey!==lastRenderKey){lastRenderKey=renderKey;render();}
+    if(!d.waiting){
+      await ensureLocal();const ids=(d.members||[]).map(x=>x.id).filter(x=>x!==d.self_id).sort();const peerKey=ids.join(',');
+      if(peerKey!==lastPeerKey||ids.some(id=>!pcs[id]||((pcs[id].connectionState==='connecting'||pcs[id].connectionState==='new')&&Date.now()-pcs[id]._createdAt>25000))){
+        ids.forEach(id=>{const pc=pcs[id];if(pc&&Date.now()-pc._createdAt>25000&&pc.connectionState!=='connected')closePeer(id);});
+        lastPeerKey=peerKey;await syncPeers();
+      }
+      syncOwnTrack();if(wasWaiting){await pollMessages();await refreshBookState(true);}
+    }else{lastPeerKey='';closeAll();}
+  }catch(e){banner(e.message||'Связь с комнатой потеряна');if((e.message||'').includes('больше не участник')||(e.message||'').includes('закрыта'))setTimeout(()=>leaveRoom(false),900);}
+  finally{stateBusy=false;}
+}
+
+function memberList(){return (stateData?.visible_members&&stateData.visible_members.length?stateData.visible_members:stateData?.members)||[];}
+function render(){
+  const d=stateData;if(!d)return;document.getElementById('title').textContent=d.title;
+  const visible=memberList(),participantCount=Number(d.participant_count??visible.length??0);
+  const exitButton=document.getElementById('exitRoomBtn');
+  if(exitButton)exitButton.textContent=d.created_by===d.self_id?'Завершить эфир':'Выйти из эфира';
+  const roomCapacity=Math.max(4,Number(d.capacity||S.roomCapacity||8));
+  document.getElementById('participantsBtn').textContent=participantCount+'/'+roomCapacity;
+  document.getElementById('accessLabel').textContent=(d.access_mode||S.roomAccess)==='closed'?'🔒 Закрытый':'Открытый';
+  const waiting=!!d.waiting;document.getElementById('waitingHero').classList.toggle('hidden',!waiting);document.getElementById('roomContent').classList.toggle('hidden',waiting);document.getElementById('controls').classList.toggle('hidden',waiting);
+  if(waiting){
+    document.getElementById('waitingNumber').textContent=d.waiting_position||1;
+    document.getElementById('count').textContent=participantCount+' в комнате · ваше место в очереди '+(d.waiting_position||1);
+    banner('Вы в зале ожидания. Модератор увидит запрос и сможет поднять вас.');return;
+  }
+  const members=d.members||[],listeners=members.filter(m=>m.seat==null);
+  const capacity=Number(d.capacity||S.roomCapacity||8),seatCount=Math.max(4,Math.min(12,capacity));
+  document.getElementById('count').textContent=members.length+' участников · '+seatCount+' мест';
+  // Every selected seat is visible; the former limit of five tiles hid valid speakers.
+  const bySeat=new Map(members.filter(m=>Number.isInteger(Number(m.seat))&&Number(m.seat)>=1).map(m=>[Number(m.seat),m]));
+  const stage=document.getElementById('grid');stage.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';
+  stage.classList.toggle('compact-grid',seatCount>=6);
+  stage.classList.toggle('round-8',!IS_VIDEO&&seatCount===8&&liveSeatLayout==='circle_8');
+  let html='';
+  for(let position=1;position<=seatCount;position++){
+    const m=bySeat.get(position);
+    if(!m){html+=`<div class="seat empty" data-seat="${position}"><div class="avatar">${position}</div><div class="name">Свободное место</div></div>`;continue;}
+
+    const micOn=!!m.mic_enabled&&!!m.mic_allowed,hand=!!m.hand_raised,blocked=!m.mic_allowed,clickable=d.can_moderate&&m.id!==d.self_id;
+    html+=`<div class="seat ${micOn?'micOn':''} ${hand?'hand':''} ${blocked?'blocked':''}" data-seat="${position}" data-user-id="${m.id}" ${clickable?`onclick="openMod('${m.id}')"`:''}>${IS_VIDEO?`<video id="video_${m.id}" autoplay playsinline ${m.id===d.self_id?'muted':''}></video>`:''}${clickable?'<div class="mod">⋯</div>':''}<div class="badge">${blocked?'×':micOn?'🎙':'🎤'}</div><div class="avatar">${escapeHtml(initials(m.display_name))}</div><div class="name">${escapeHtml(m.display_name)}</div><div class="role ${['owner','host'].includes(m.role)?'hostRole':''}">${['owner','host'].includes(m.role)?'♛ '+roleName(m.role):roleName(m.role)}</div></div>`;
+  }
+
+  if(stage.classList.contains('round-8')&&liveCentralMicEnabled){
+    html+=`<button type="button" class="centralMic" id="centralMicBtn" aria-label="Микрофон: включить или выключить" onclick="micAction()"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6"/></svg><span class="micText">МИКРОФОН</span><span id="micSpeaker" class="micSpeaker">В эфире</span></button>`;
+  }
+  document.getElementById('grid').innerHTML=html;bindVideoTiles();
+  document.getElementById('listenersCount').textContent=listeners.length;document.getElementById('listenersBox').classList.add('hidden');
+  document.getElementById('listenersList').innerHTML=listeners.map(m=>`<div class="listenerRow" ${d.can_moderate&&m.id!==d.self_id?`onclick="openMod('${m.id}')"`:''}><div class="listenerAvatar">${escapeHtml(initials(m.display_name))}</div><div class="listenerName">${escapeHtml(m.display_name)}</div>${m.hand_raised?'<div class="listenerHand">хочет говорить</div>':'<div class="participantRole">слушает</div>'}</div>`).join('');
+  const me=members.find(x=>x.id===d.self_id),handBtn=document.getElementById('hand'),mic=document.getElementById('mic');
+  handBtn.classList.toggle('on',!!me?.hand_raised);handBtn.textContent=me?.hand_raised?'Рука поднята':'Поднять руку';
+  mic.classList.remove('on','blocked');const micLabel=document.getElementById('micLabel');if(me?.seat==null&&!me?.mic_allowed){micLabel.textContent='Поднять руку';mic.classList.add('blocked');}else if(!me?.mic_allowed){micLabel.textContent='Микрофон выкл.';mic.classList.add('blocked');}else if(me?.mic_enabled){micLabel.textContent='Микрофон';mic.classList.add('on');}else micLabel.textContent='Микрофон';const cb=document.getElementById('cameraBtn');if(cb)cb.classList.toggle('hidden',!IS_VIDEO);renderCameraButton();
+  renderWaiting();renderBook();
+  const enabledCount=members.filter(x=>x.mic_allowed&&x.mic_enabled).length;updateAudioHealth();
+}
+
+function inviteRoom(){closeSheet();try{MuwahidNative.invite();}catch(e){banner('Не удалось открыть приглашение');}}
+function requestExitRoom(){
+  if(closed)return;
+  if(!stateData){banner('Проверяем состояние эфира. Повторите через секунду.');return;}
+  if(stateData.created_by===stateData.self_id)openCloseRoomConfirm();
+  else leaveRoom();
+}
+function openParticipants(){
+  const arr=memberList();document.getElementById('sheetTitle').textContent='Участники · '+arr.length;
+  let html='<button onclick="inviteRoom()">＋ Пригласить в эфир</button>';
+  if(!arr.length)html+='<div class="participantLine">Пока никого нет</div>';
+  else for(const m of arr){
+    if(stateData?.can_moderate&&m.id!==stateData.self_id)html+=`<button onclick="openMod('${m.id}')">${escapeHtml(m.display_name)} · ${roleName(m.role)}</button>`;
+    else html+=`<div class="participantLine"><div class="participantName">${escapeHtml(m.display_name)}</div><div class="participantRole">${roleName(m.role)}</div></div>`;
+  }
+  if(stateData?.can_moderate){for(const u of(stateData.waiting_users||[]))html+=`<button onclick="admit('${u.id}')">Принять: ${escapeHtml(u.display_name)}</button>`;}
+  if(stateData?.created_by===stateData?.self_id)html+='<button class="danger" onclick="openCloseRoomConfirm()">Завершить эфир для всех</button>';
+  html+='<button class="cancel" onclick="closeSheet()">Закрыть</button>';document.getElementById('sheetBtns').innerHTML=html;document.getElementById('sheetWrap').style.display='flex';
+}
+function openCloseRoomConfirm(){
+  if(stateData?.created_by!==stateData?.self_id)return;
+  closeSheet();
+  document.getElementById('sheetTitle').textContent='Завершить эфир для всех?';
+  document.getElementById('sheetBtns').innerHTML='<div class="participantLine">Все участники будут выведены. Повторно войти в эту комнату будет нельзя.</div><button class="danger" onclick="confirmCloseRoom()">Да, закрыть для всех</button><button class="cancel" onclick="closeSheet()">Отмена</button>';
+  document.getElementById('sheetWrap').style.display='flex';
+}
+async function confirmCloseRoom(){
+  if(stateData?.created_by!==stateData?.self_id)return;
+  closeSheet();banner('Завершаем эфир для всех…');
+  try{const result=await rpc('mw_room_end',{p_room:S.roomId});if(!result?.closed)throw new Error('Сервер не подтвердил завершение');setTimeout(()=>leaveRoom(false),250);}
+  catch(e){banner(e.message||'Не удалось закрыть комнату');}
+}
+
+function renderWaiting(){
+  const d=stateData,box=document.getElementById('waitingBox'),list=document.getElementById('waitingList'),arr=d?.waiting_users||[];box.classList.add('hidden');
+  document.getElementById('waitingCount').textContent=d?.waiting_count||0;if(!d?.can_moderate)return;
+  list.innerHTML=arr.map((u,i)=>`<div class="waitRow"><div class="waitName">${i+1}. ${escapeHtml(u.display_name)}</div><button class="smallBtn" onclick="admit('${u.id}')">Поднять</button></div>`).join('');
+}
+async function admit(uid){try{await rpc('mw_room_admit',{p_room:S.roomId,p_user:uid});await refreshState();}catch(e){banner(e.message);}}
+async function toggleHand(){if(!stateData||stateData.waiting)return;const me=(stateData.members||[]).find(x=>x.id===stateData.self_id);try{await rpc('mw_room_raise_hand',{p_room:S.roomId,p_raised:!me?.hand_raised});me.hand_raised=!me?.hand_raised;render();}catch(e){banner(e.message);}}
+async function micAction(){if(!stateData||stateData.waiting)return;await activateAudio();if(audioCtx?.state!=='running')return;const me=(stateData.members||[]).find(x=>x.id===stateData.self_id);if(!me)return;if(me.seat==null&&!me.mic_allowed){await toggleHand();return;}const next=!me.mic_enabled;if(!me.mic_allowed){banner('Ваш микрофон выключен модератором');return;}me.mic_enabled=next;syncOwnTrack();render();try{await rpc('mw_room_mic_set_self',{p_room:S.roomId,p_enabled:next});}catch(e){me.mic_enabled=!next;syncOwnTrack();render();banner(e.message);}}
+function renderCameraButton(){const b=document.getElementById('cameraBtn');if(!b)return;b.classList.toggle('on',IS_VIDEO&&cameraOn);const span=b.querySelector('span:last-child');if(span)span.textContent=cameraOn?'Камера':'Камера выкл.';}
+function cameraAction(){if(!IS_VIDEO)return;const t=micStream?.getVideoTracks?.()[0];if(!t){banner('Камера недоступна');return;}cameraOn=!cameraOn;t.enabled=cameraOn;renderCameraButton();bindVideoTiles();}
+function speakerAction(){activateAudio();speakerOn=!speakerOn;MuwahidNative.setSpeaker(speakerOn);const b=document.getElementById('speakerBtn');if(b)b.classList.toggle('on',speakerOn);}
+function bindVideoTiles(){if(!IS_VIDEO||!stateData)return;for(const m of(stateData.members||[])){const v=document.getElementById('video_'+m.id);if(!v)continue;const stream=m.id===stateData.self_id?micStream:remoteStreams[m.id];const avatar=v.parentElement?.querySelector('.avatar');if(stream&&stream.getVideoTracks&&stream.getVideoTracks().length){if(v.srcObject!==stream)v.srcObject=stream;v.play().catch(()=>{});const track=stream.getVideoTracks()[0];if(avatar)avatar.style.display=(track&&track.enabled)?'none':'grid';}else if(avatar)avatar.style.display='grid';}}
+function openMod(uid){
+  if(!stateData?.can_moderate)return;closeSheet();const m=(stateData.members||[]).find(x=>x.id===uid);if(!m)return;document.getElementById('sheetTitle').textContent=m.display_name;
+  let html=m.mic_allowed?`<button onclick="moderateMic('${uid}',false)">Опустить в слушатели</button>`:`<button onclick="moderateMic('${uid}',true)">Поднять в спикеры</button>`;
+  if(stateData.can_assign_moderator&&m.role!=='owner'&&m.role!=='host')html+=m.role==='moderator'?`<button onclick="setModerator('${uid}',false)">Снять роль модератора</button>`:`<button onclick="setModerator('${uid}',true)">Назначить модератором</button>`;
+  if(bookState?.active&&stateData.can_moderate)html+=`<button onclick="giveBookControl('${uid}')">Передать управление книгой</button>`;
+  html+=`<button class="danger" onclick="kick('${uid}',false)">Удалить из комнаты</button><button class="danger" onclick="kick('${uid}',true)">Заблокировать в комнате</button><button class="cancel" onclick="closeSheet()">Отмена</button>`;
+  document.getElementById('sheetBtns').innerHTML=html;document.getElementById('sheetWrap').style.display='flex';
+}
+function closeSheet(){document.getElementById('sheetWrap').style.display='none';}
+async function setModerator(uid,enabled){closeSheet();try{await rpc('mw_room_moderator_set',{p_room:S.roomId,p_user:uid,p_enabled:enabled});await refreshState();}catch(e){banner(e.message);}}
+async function moderateMic(uid,allowed){closeSheet();try{await rpc('mw_room_mic_moderate',{p_room:S.roomId,p_user:uid,p_allowed:allowed});await refreshState();}catch(e){banner(e.message);}}
+async function kick(uid,ban){closeSheet();try{await rpc('mw_room_kick',{p_room:S.roomId,p_user:uid,p_ban:ban});await refreshState();}catch(e){banner(e.message);}}
+
+
+function closeTools(){document.getElementById('toolWrap').style.display='none';}
+function toolSvg(name){const p={mixer:'<path d="M5 7h14M5 12h14M5 17h14"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="11" cy="17" r="2"/>',music:'<path d="M9 18V6l9-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="15.5" cy="16" r="2.5"/>',sound:'<path d="M5 10h4l5-4v12l-5-4H5z"/><path d="M17 9c2 2 2 4 0 6"/>',sticker:'<path d="M6 4h12a2 2 0 0 1 2 2v8l-6 6H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M14 20v-4a2 2 0 0 1 2-2h4"/>',users:'<circle cx="9" cy="9" r="3"/><circle cx="16" cy="10" r="2.5"/><path d="M4 19c1-4 3-5 5-5s4 1 5 5M14 15c3-1 5 1 6 4"/>',chat:'<path d="M5 5h14v11H9l-4 3z"/>',shield:'<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/><path d="M9 12l2 2 4-4"/>',record:'<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/>',book:'<path d="M4 5c4-1 6 0 8 2v12c-2-2-4-3-8-2zM20 5c-4-1-6 0-8 2v12c2-2 4-3 8-2z"/>',palette:'<path d="M12 4c-5 0-8 3-8 7 0 5 4 9 8 9 2 0 3-1 2-3-1-2 1-3 3-2 2 0 3-2 3-4 0-4-3-7-8-7z"/><circle cx="8" cy="9" r="1"/><circle cx="12" cy="7" r="1"/><circle cx="16" cy="9" r="1"/>',status:'<path d="M5 18V12M10 18V8M15 18V11M20 18V5"/>',time:'<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>'};return `<svg viewBox="0 0 24 24">${p[name]||p.status}</svg>`;}
+function toolButton(icon,label,fn){return `<button class="toolItem" onclick="${fn}"><span class="toolIcon">${toolSvg(icon)}</span>${label}</button>`;}
+function toggleStudioSpeaker(){speakerAction();const item=document.getElementById('speakerBtn');if(item)banner(speakerOn?'Динамик включён':'Динамик выключен');closeTools();}
+function studioInvite(){closeTools();inviteRoom();}
+function openTools(){
+  document.getElementById('toolTitle').textContent='Инструменты комнаты';
+  let html='<div class="toolGrid">';
+  html+=toolButton('sound','Динамик','toggleStudioSpeaker()')+toolButton('users','Пригласить','studioInvite()');
+  html+=toolButton('mixer','Микшер','openMixer()')+toolButton('music','Музыка','openMusicPanel()')+toolButton('sound','Звуки','openSoundPanel()')+toolButton('sticker','Стикеры','openStickerPanel()');
+  html+=toolButton('users','Пользователи','toolUsers()')+toolButton('chat','Комментарии','toolComments()')+toolButton('shield','Управление','toolManagement()')+toolButton('record','Запись','openRecordingPanel()');
+  html+=toolButton('book','Чтение','toolBook()')+toolButton('palette','Фон','openThemePanel()')+toolButton('status','Статус','openRoomStatus()')+toolButton('time','Время','openRoomStatus()');
+  if(stateData?.created_by===stateData?.self_id)html+=toolButton('palette','Фото/видео фон','openLiveBackgroundPanel()');
+  html+='</div>';
+  document.getElementById('toolBody').innerHTML=html;document.getElementById('toolWrap').style.display='flex';
+}
+function openLiveBackgroundPanel(){
+  if(!stateData||stateData.waiting)return;
+  if(stateData.created_by!==stateData.self_id){banner('Фон может изменять только создатель эфира');return;}
+  const html='<div class="panelCard">Выберите фотографию или видеоролик MP4/WebM длительностью 15–60 секунд. Фон показывается всем участникам без звука.</div>'+
+    '<div class="sheetBtns"><button onclick="MuwahidNative.pickBackground(\'image\')">Выбрать фотографию</button><button onclick="MuwahidNative.pickBackground(\'video\')">Выбрать видео (15–60 сек.)</button><button onclick="backTool()">Назад</button></div>';
+  setToolPanel('Фон прямого эфира',html);
+}
+function toolUsers(){closeTools();openParticipants();}
+function toolManagement(){closeTools();openParticipants();}
+function syncChatAction(){
+  const chat=document.getElementById('chatSection'),button=document.getElementById('chatAction');
+  if(!chat||!button)return;
+  const visible=!chat.classList.contains('hidden');
+  button.classList.toggle('on',visible);
+  button.setAttribute('aria-expanded',String(visible));
+  button.setAttribute('aria-pressed',String(visible));
+}
+function revealAux(id){closeTools();closeSheet();document.querySelectorAll('.auxiliary').forEach(x=>x.classList.add('hidden'));const el=document.getElementById(id);if(el){el.classList.remove('hidden');setTimeout(()=>{if(!el.classList.contains('hidden'))el.scrollIntoView({behavior:'smooth',block:'start'});},20);}syncChatAction();return el;}
+function closeBookPanel(){
+  // Local UI only: never stop the Supabase shared-reading session or end the LIVE room.
+  closeTools();closeSheet();document.getElementById('bookSection').classList.add('hidden');
+  const stage=document.querySelector('.stage');if(stage&&typeof stage.scrollTo==='function')stage.scrollTo({top:0,behavior:'smooth'});
+}
+function handleLiveBack(){
+  if(document.getElementById('toolWrap').style.display==='flex'){closeTools();return true;}
+  if(document.getElementById('sheetWrap').style.display==='flex'){closeSheet();return true;}
+  const panel=document.querySelector('.auxiliary:not(.hidden)');
+  if(panel){if(panel.id==='bookSection')closeBookPanel();else panel.classList.add('hidden');syncChatAction();return true;}
+  return false;
+}
+function toolComments(){
+  const chat=document.getElementById('chatSection');
+  if(!chat)return;
+  if(!chat.classList.contains('hidden')){
+    closeTools();closeSheet();
+    const input=document.getElementById('chatInput');
+    if(input&&document.activeElement===input)input.blur();
+    chat.classList.add('hidden');
+    syncChatAction();
+    return;
+  }
+  // Do not open the Android keyboard automatically: users can tap the input when needed.
+  revealAux('chatSection');
+}
+function toolBook(){revealAux('bookSection');if(liveBookAutoPick&&stateData?.can_moderate&&!bookState?.active)setTimeout(()=>{if(!document.getElementById('bookSection').classList.contains('hidden'))MuwahidNative.pickBook();},250);}
+function setToolPanel(title,html){document.getElementById('toolTitle').textContent=title;document.getElementById('toolBody').innerHTML=html;document.getElementById('toolWrap').style.display='flex';}
+function backTool(){openTools();}
+function chip(label,key,current,fn){return `<button class="chip ${key===current?'active':''}" onclick="${fn}('${key}')">${label}</button>`;}
+function openMixer(){
+  const pct=Math.round(micVolume*100);
+  let html=`<div class="panelCard"><div class="panelRow"><label>Громкость микрофона</label><b id="micVolLabel">${pct}%</b></div><input style="width:100%" type="range" min="0" max="150" value="${pct}" oninput="setMicVolume(this.value)"><div class="panelRow"><label>Прослушивать свой обработанный голос</label><input type="checkbox" ${previewMic?'checked':''} onchange="setMicPreview(this.checked)"></div><div class="panelRow"><label>Звуковые эффекты</label><input type="checkbox" ${fxEnabled?'checked':''} onchange="setFxEnabled(this.checked)"></div></div>`;
+  html+='<div class="toolSection"><div class="toolSectionTitle">Звуковой эффект</div><div class="chipGrid">';
+  html+=chip('Исходный','original',currentFx,'selectRoomFx')+chip('Эхо','echo',currentFx,'selectRoomFx')+chip('Концерт','concert',currentFx,'selectRoomFx')+chip('Караоке','karaoke',currentFx,'selectRoomFx')+chip('Эфир','broadcast',currentFx,'selectRoomFx')+chip('Зал','hall',currentFx,'selectRoomFx')+'</div></div>';
+  html+='<div class="toolSection"><div class="toolSectionTitle">Эквалайзер</div><div class="chipGrid">';
+  html+=chip('Нет','none',currentEq,'selectEq')+chip('Поп','pop',currentEq,'selectEq')+chip('Электронный','electronic',currentEq,'selectEq')+chip('Рок','rock',currentEq,'selectEq')+chip('Бас','bass',currentEq,'selectEq')+chip('Джаз','jazz',currentEq,'selectEq')+'</div></div>';
+  html+='<div class="toolSection"><div class="toolSectionTitle">Изменение тембра голоса</div><div class="chipGrid">';
+  html+=chip('Нет','normal',currentVoice,'selectVoice')+chip('Мягкий','soft',currentVoice,'selectVoice')+chip('Низкий','deep',currentVoice,'selectVoice')+chip('Яркий','bright',currentVoice,'selectVoice')+chip('Радио','radio',currentVoice,'selectVoice')+chip('Робот','robot',currentVoice,'selectVoice')+'</div></div>';
+  html+='<div class="panelRow"><button class="chip" onclick="resetMixer()">↺ Сбросить</button><button class="chip" onclick="backTool()">← Инструменты</button></div>';
+  setToolPanel('Микшер',html);
+}
+function setMicVolume(v){micVolume=Math.max(0,Math.min(1.5,Number(v)/100));if(micGainNode)micGainNode.gain.setTargetAtTime(micVolume,audioCtx.currentTime,.02);const l=document.getElementById('micVolLabel');if(l)l.textContent=Math.round(micVolume*100)+'%';}
+function setMicPreview(v){previewMic=!!v;if(previewGain&&audioCtx)previewGain.gain.setTargetAtTime(previewMic ? .16:0,audioCtx.currentTime,.02);}
+function setFxEnabled(v){fxEnabled=!!v;applyRoomFx();}
+function resetMixer(){micVolume=1;previewMic=false;fxEnabled=true;currentEq='none';currentFx='original';currentVoice='normal';applyMixerState();openMixer();}
+function selectEq(v){currentEq=v;applyEq();openMixer();}
+function selectRoomFx(v){currentFx=v;applyRoomFx();openMixer();}
+function selectVoice(v){currentVoice=v;applyVoice();openMixer();}
+function applyMixerState(){setMicVolume(micVolume*100);setMicPreview(previewMic);applyEq();applyRoomFx();applyVoice();}
+function applyEq(){if(!eqLow||!audioCtx)return;const p={none:[0,0,0],pop:[2,1,3],electronic:[4,-1,5],rock:[4,2,4],bass:[8,-1,-2],jazz:[3,2,3]}[currentEq]||[0,0,0];eqLow.gain.setTargetAtTime(p[0],audioCtx.currentTime,.03);eqMid.gain.setTargetAtTime(p[1],audioCtx.currentTime,.03);eqHigh.gain.setTargetAtTime(p[2],audioCtx.currentTime,.03);}
+function applyVoice(){if(!voiceHP||!voiceLP||!audioCtx)return;let hp=70,lp=18000,q=.7;if(currentVoice==='soft'){hp=90;lp=6500;q=.55;}else if(currentVoice==='deep'){hp=45;lp=9000;q=.8;}else if(currentVoice==='bright'){hp=170;lp=18000;q=.65;}else if(currentVoice==='radio'){hp=420;lp=3400;q=1.15;}else if(currentVoice==='robot'){hp=650;lp=5200;q=3.2;}voiceHP.frequency.setTargetAtTime(hp,audioCtx.currentTime,.03);voiceHP.Q.setTargetAtTime(q,audioCtx.currentTime,.03);voiceLP.frequency.setTargetAtTime(lp,audioCtx.currentTime,.03);voiceLP.Q.setTargetAtTime(q,audioCtx.currentTime,.03);}
+function applyRoomFx(){if(!fxDry||!audioCtx)return;let dry=1,wet=0,rev=0,delay=.16,fb=.18;if(fxEnabled){if(currentFx==='echo'){dry=.92;wet=.34;delay=.22;fb=.30;}else if(currentFx==='concert'){dry=.92;wet=.18;rev=.30;delay=.12;fb=.16;}else if(currentFx==='karaoke'){dry=1;wet=.12;rev=.12;delay=.085;fb=.08;}else if(currentFx==='broadcast'){dry=1;wet=.04;rev=.04;delay=.045;fb=.03;}else if(currentFx==='hall'){dry=.85;wet=.20;rev=.42;delay=.18;fb=.20;}}fxDry.gain.setTargetAtTime(dry,audioCtx.currentTime,.03);fxWet.gain.setTargetAtTime(wet,audioCtx.currentTime,.03);fxReverbWet.gain.setTargetAtTime(rev,audioCtx.currentTime,.03);fxDelay.delayTime.setTargetAtTime(delay,audioCtx.currentTime,.03);fxFeedback.gain.setTargetAtTime(fb,audioCtx.currentTime,.03);}
+function makeImpulse(ctx,seconds=1.8,decay=2.4){const len=Math.max(1,Math.floor(ctx.sampleRate*seconds)),b=ctx.createBuffer(2,len,ctx.sampleRate);for(let c=0;c<2;c++){const d=b.getChannelData(c);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,decay);}return b;}
+
+function openMusicPanel(){
+  const playing=!musicAudio.paused&&!!musicAudio.src;let html=`<div class="panelCard"><div class="musicTitle">${escapeHtml(musicName)}</div><div style="font-size:12px;color:#777;margin-top:4px">Музыка смешивается с вашим микрофоном и слышна участникам, когда вы спикер и микрофон включён.</div></div>`;
+  html+='<div class="panelRow"><button class="chip" onclick="MuwahidNative.pickAudio()">Выбрать файл</button><button class="chip '+(playing?'active':'')+'" onclick="toggleMusic()">'+(playing?'⏸ Пауза':'▶ Играть')+'</button><button class="chip" onclick="stopMusic()">■ Стоп</button></div>';
+  html+=`<div class="panelCard"><div class="panelRow"><label>Громкость музыки</label><input type="range" min="0" max="120" value="${Math.round((musicGainNode?.gain?.value??.75)*100)}" oninput="setMusicVolume(this.value)"></div><div class="panelRow"><label>Повторять трек</label><input type="checkbox" ${musicAudio.loop?'checked':''} onchange="musicAudio.loop=this.checked"></div></div>`;
+  html+='<button class="chip" onclick="backTool()">← Инструменты</button>';setToolPanel('Музыка',html);
+}
+window.mwMusicSelected=async(url,name)=>{try{await ensureLocal();musicName=name||'Музыка';musicAudio.src=url;musicAudio.load();banner('Музыка выбрана: '+musicName);openMusicPanel();}catch(e){banner(e.message||'Не удалось подготовить музыку');}};
+async function toggleMusic(){try{await ensureLocal();if(!musicAudio.src){MuwahidNative.pickAudio();return;}if(musicAudio.paused)await musicAudio.play();else musicAudio.pause();openMusicPanel();}catch(e){banner('Не удалось воспроизвести музыку');}}
+function stopMusic(){try{musicAudio.pause();musicAudio.currentTime=0;}catch(e){}openMusicPanel();}
+function setMusicVolume(v){if(musicGainNode&&audioCtx)musicGainNode.gain.setTargetAtTime(Math.max(0,Math.min(1.2,Number(v)/100)),audioCtx.currentTime,.02);}
+
+function openSoundPanel(){let html='<div class="panelCard">Эти звуки генерируются внутри Muwahid и реально смешиваются с аудиокомнатой.</div><div class="chipGrid">';for(const [k,l] of [['chime','Звонок'],['applause','Аплодисменты'],['drum','Барабан'],['success','Успех'],['notify','Сигнал'],['sparkle','Эффект']])html+=`<button class="chip" onclick="playSfx('${k}')">${l}</button>`;html+='</div><div class="panelRow"><button class="chip" onclick="backTool()">← Инструменты</button></div>';setToolPanel('Звуки',html);}
+async function playSfx(kind){await ensureLocal();const ctx=getAudioContext();if(!ctx||!sfxBus)return;const now=ctx.currentTime;
+  if(kind==='applause'){const b=ctx.createBuffer(1,Math.floor(ctx.sampleRate*1.2),ctx.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.exp(-i/(ctx.sampleRate*.55))*(.45+.55*Math.random());const src=ctx.createBufferSource(),f=ctx.createBiquadFilter(),g=ctx.createGain();f.type='bandpass';f.frequency.value=1800;f.Q.value=.45;g.gain.value=.45;src.buffer=b;src.connect(f).connect(g).connect(sfxBus);src.start(now);return;}
+  const sets={chime:[[660,.14],[880,.18],[1100,.25]],drum:[[120,.08],[85,.16]],success:[[523,.10],[659,.10],[784,.22]],notify:[[740,.08],[740,.08]],sparkle:[[900,.06],[1200,.07],[1500,.10],[1900,.14]]}[kind]||[[600,.15]];let t=now;for(const [f,dur] of sets){const o=ctx.createOscillator(),g=ctx.createGain();o.type=kind==='drum'?'sine':'triangle';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.26,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(sfxBus);o.start(t);o.stop(t+dur+.03);t+=dur*.72;}}
+
+function openStickerPanel(){const stickers=['🎉','👏','❤️','🔥','🌟','😂','👍','🎤','🎵','🥳','💯','✨'];let html='<div class="chipGrid">'+stickers.map(x=>`<button class="chip" style="font-size:24px" onclick="sendSticker('${x}')">${x}</button>`).join('')+'</div><div class="panelRow"><button class="chip" onclick="backTool()">← Инструменты</button></div>';setToolPanel('Стикеры',html);}
+async function sendSticker(x){if(!stateData||stateData.waiting)return;try{const m=await rpc('mw_room_message_send',{p_room:S.roomId,p_kind:'text',p_body:x+' '+x+' '+x,p_media:null});lastMessage=Math.max(lastMessage,Number(m.id)||0);appendMessage(m);banner('Стикер отправлен');}catch(e){banner(e.message||'Не удалось отправить стикер');}}
+
+// LIVE themes are shared Supabase room state, not device-only body styles.
+const ROOM_THEMES={
+  violet:{name:'Фиолетовый',bg:'linear-gradient(180deg,#713ab8 0%,#442d89 55%,#171a45 100%)',seat:'linear-gradient(140deg,#432c65e0,#201a3cdb)'},
+  midnight:{name:'Ночной',bg:'linear-gradient(180deg,#13224f,#10182e 58%,#080b1d)',seat:'linear-gradient(140deg,#203355e0,#0e172fdf)'},
+  ocean:{name:'Океан',bg:'linear-gradient(180deg,#1a6d99,#17456f 52%,#0a2449)',seat:'linear-gradient(140deg,#1d5375d9,#123050e0)'},
+  emerald:{name:'Изумруд',bg:'linear-gradient(180deg,#137f70,#15594e 50%,#0a383d)',seat:'linear-gradient(140deg,#1b6557de,#123b43dc)'},
+  sunset:{name:'Закат',bg:'linear-gradient(180deg,#ba5888,#8a4378 48%,#3e2b69)',seat:'linear-gradient(140deg,#7a385eda,#33254cd9)'},
+  graphite:{name:'Графит',bg:'linear-gradient(160deg,#183749 0%,#102737 56%,#081722 100%)',seat:'linear-gradient(140deg,#244557e0,#132b3de0)'}
+};
+let currentRoomTheme=null,lastRoomThemeRevision='',roomThemeSyncTimer=null,roomThemeLoading=false,roomThemeSaving=false;
+let liveConfigTimer=null,liveConfigLoading=false,roomThemePollMs=4500,liveThemeButtonsEnabled=true,liveBookAutoPick=false;
+let liveSeatLayout='circle_8',liveSpeakerHighlight=true,liveCentralMicEnabled=true;
+const ROOM_THEME_BASE=JSON.parse(JSON.stringify(ROOM_THEMES));
+function hexColor(x){return typeof x==='string'&&/^#[a-fA-F0-9]{6}$/.test(x)?x:null;}
+function applyLiveConfig(config){
+  // Only a documented allowlist of data is configurable: never accept scripts, URLs or CSS.
+  const live=config&&typeof config==='object'&&config.live&&typeof config.live==='object'?config.live:{};
+  liveThemeButtonsEnabled=live.theme_controls_enabled!==false;
+  // Server controls only harmless defaults and captions; the escape button stays available to everyone.
+  liveBookAutoPick=live.book_auto_open_picker===true;
+  // Predefined render modes only. Remote data never becomes executable HTML/CSS.
+  liveSeatLayout=live.seating_layout==='grid'?'grid':'circle_8';
+  liveSpeakerHighlight=live.speaker_highlight_enabled!==false;
+  liveCentralMicEnabled=live.central_mic_enabled!==false;
+  const speakerColor=hexColor(live.speaker_glow_color)||'#c18aff';
+  document.documentElement.style.setProperty('--live-speaker-glow',speakerColor);
+
+  const closeCaption=typeof live.reading_close_label==='string'?live.reading_close_label.trim():'';
+  document.getElementById('closeReadingBtn').textContent='✕ '+(closeCaption&&closeCaption.length<=24?closeCaption:'Закрыть');
+  const seconds=Number(live.theme_refresh_seconds);
+  const newPollMs=Number.isFinite(seconds)?Math.max(3,Math.min(60,Math.floor(seconds)))*1000:4500;
+  if(newPollMs!==roomThemePollMs){
+    roomThemePollMs=newPollMs;
+    if(roomThemeSyncTimer){clearInterval(roomThemeSyncTimer);roomThemeSyncTimer=setInterval(syncRoomTheme,roomThemePollMs);}
+  }
+  for(const [k,base] of Object.entries(ROOM_THEME_BASE)){
+    ROOM_THEMES[k]={...base};
+    const title=live.theme_titles&&live.theme_titles[k];
+    if(typeof title==='string'&&title.trim().length&&title.length<=32)ROOM_THEMES[k].name=title.trim();
+    const colors=live.theme_colors&&live.theme_colors[k];
+    if(colors&&typeof colors==='object'){
+      const top=hexColor(colors.top),mid=hexColor(colors.mid),bottom=hexColor(colors.bottom),seat=hexColor(colors.seat);
+      if(top&&mid&&bottom)ROOM_THEMES[k].bg=`linear-gradient(180deg,${top} 0%,${mid} 55%,${bottom} 100%)`;
+      if(seat&&bottom)ROOM_THEMES[k].seat=`linear-gradient(140deg,${seat},${bottom})`;
+    }
+  }
+  const notice=document.getElementById('serverNotice');
+  if(notice){
+    const msg=typeof live.notice==='string'?live.notice.trim().slice(0,180):'';
+    notice.textContent=msg;notice.classList.toggle('hidden',!msg);
+  }
+  if(currentRoomTheme)applyRoomTheme(currentRoomTheme);
+  if(stateData&&!stateData.waiting&&typeof render==='function')render();
+}
+async function refreshLiveConfig(){
+  if(closed||liveConfigLoading)return;
+  liveConfigLoading=true;
+  try{const config=await rpc('mw_app_config',{});applyLiveConfig(config);}
+  catch(e){/* Offline clients retain their last applied settings; never block LIVE. */}
+  finally{liveConfigLoading=false;}
+}
+
+function applyRoomTheme(k){
+  const preset=ROOM_THEMES[k];if(!preset)return;
+  const bg=document.getElementById('liveBackground');
+  document.body.style.setProperty('background',preset.bg,'important');
+  document.documentElement.style.setProperty('--room-seat-bg',preset.seat);
+  document.body.classList.add('room-theme-active');
+  if(bg)bg.style.setProperty('background',preset.bg,'important');
+  const img=document.getElementById('liveBackgroundImage'),video=document.getElementById('liveBackgroundVideo');
+  if(img)img.classList.add('hidden');
+  if(video){video.classList.add('hidden');try{video.pause();}catch(e){}}
+  currentRoomTheme=k;
+  document.querySelectorAll('[data-room-theme]').forEach(b=>b.classList.toggle('active',b.dataset.roomTheme===k));
+}
+function openThemePanel(){
+  if(!liveThemeButtonsEnabled){banner('Выбор темы временно отключён настройками сервера');return;}
+  let html='<div class="chipGrid">';
+  for(const [k,preset] of Object.entries(ROOM_THEMES))html+=`<button class="chip ${currentRoomTheme===k?'active':''}" data-room-theme="${k}" onclick="setRoomTheme('${k}')">${preset.name}</button>`;
+  html+='</div><div class="panelCard">Фон сохраняется для всех участников через Supabase.</div><div class="panelRow"><button class="chip" onclick="backTool()">← Инструменты</button></div>';
+  setToolPanel('Фон комнаты · онлайн',html);
+}
+async function setRoomTheme(k){
+  if(!ROOM_THEMES[k]||roomThemeSaving)return;
+  if(!liveThemeButtonsEnabled){banner('Выбор темы временно отключён настройками сервера');return;}
+  if(!stateData||stateData.waiting){banner('Войдите в комнату для смены фона');return;}
+  if(!stateData.can_moderate&&stateData.created_by!==stateData.self_id){banner('Менять фон может только ведущий или модератор');return;}
+  roomThemeSaving=true;banner('Сохраняем фон комнаты…');
+  try{
+    const saved=await rpc('mw_room_theme_set',{p_room:S.roomId,p_theme:k});
+    if(!saved||saved.theme!==k)throw new Error('Сервер не подтвердил изменение фона');
+    lastRoomThemeRevision=String(saved.updated_at||'');
+    applyRoomTheme(k);
+    banner('Фон «'+ROOM_THEMES[k].name+'» сохранён для всех участников');
+  }catch(e){banner('Ошибка сохранения фона: '+(e.message||'попробуйте ещё раз'));}
+  finally{roomThemeSaving=false;}
+}
+async function syncRoomTheme(){
+  if(closed||roomThemeLoading||!stateData||stateData.waiting)return;
+  roomThemeLoading=true;
+  try{
+    const saved=await rpc('mw_room_theme_get',{p_room:S.roomId});
+    if(saved&&ROOM_THEMES[saved.theme]&&String(saved.updated_at||'')!==lastRoomThemeRevision){
+      lastRoomThemeRevision=String(saved.updated_at||'');
+      applyRoomTheme(saved.theme);
+    }
+  }catch(e){/* An offline device keeps the last confirmed theme; next sync retries. */}
+  finally{roomThemeLoading=false;}
+}
+function openRoomStatus(){const members=stateData?.members||[],connected=Object.values(pcs).filter(p=>p.connectionState==='connected').length,secs=Math.floor((Date.now()-roomOpenedAt)/1000),mm=Math.floor(secs/60),ss=String(secs%60).padStart(2,'0');const html=`<div class="panelCard"><b>В комнате:</b> ${members.length}<br><b>На сцене:</b> ${members.filter(x=>x.seat!=null).length}<br><b>Активных микрофонов:</b> ${members.filter(x=>x.mic_allowed&&x.mic_enabled).length}<br><b>WebRTC соединений:</b> ${connected}/${Math.max(0,members.length-1)}<br><b>Время в комнате:</b> ${mm}:${ss}</div><button class="chip" onclick="backTool()">← Инструменты</button>`;setToolPanel('Статус комнаты',html);}
+
+function openRecordingPanel(){const active=roomRecorder&&roomRecorder.state!=='inactive',secs=active?Math.floor((Date.now()-recordStartedAt)/1000):0;const html=`<div class="panelCard">${active?'<span class="recordingDot"></span><b>Запись идёт</b> · '+Math.floor(secs/60)+':'+String(secs%60).padStart(2,'0'):'Запись сохраняет звук аудиокомнаты в Music/Muwahid.'}</div><button class="chip ${active?'active':''}" onclick="toggleRecording()">${active?'Остановить и сохранить':'Начать запись'}</button><div class="panelRow"><button class="chip" onclick="backTool()">← Инструменты</button></div>`;setToolPanel('Запись комнаты',html);}
+function blobBase64(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||'').split(',')[1]||'');r.onerror=reject;r.readAsDataURL(blob);});}
+async function toggleRecording(){if(roomRecorder&&roomRecorder.state!=='inactive'){await stopRoomRecording();openRecordingPanel();return;}try{await ensureLocal();if(!window.MediaRecorder||!recordDest)throw new Error('Запись не поддерживается на этом телефоне');let opts={audioBitsPerSecond:96000};if(MediaRecorder.isTypeSupported('audio/webm;codecs=opus'))opts.mimeType='audio/webm;codecs=opus';else if(MediaRecorder.isTypeSupported('audio/webm'))opts.mimeType='audio/webm';recordingSession=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,10);recordChunkQueue=Promise.resolve();roomRecorder=new MediaRecorder(recordDest.stream,opts);roomRecorder.ondataavailable=e=>{if(!e.data||!e.data.size)return;recordChunkQueue=recordChunkQueue.then(()=>blobBase64(e.data)).then(b=>MuwahidNative.recordingChunk(recordingSession,b,false)).catch(()=>{});};roomRecorder.onstop=()=>{recordChunkQueue.then(()=>{MuwahidNative.recordingChunk(recordingSession,'',true);if(recordStopResolve){const r=recordStopResolve;recordStopResolve=null;r();}});};recordStartedAt=Date.now();roomRecorder.start(1000);banner('Запись комнаты началась');openRecordingPanel();}catch(e){banner(e.message||'Не удалось начать запись');}}
+function stopRoomRecording(){return new Promise(resolve=>{if(!roomRecorder||roomRecorder.state==='inactive'){resolve();return;}recordStopResolve=resolve;try{roomRecorder.requestData();roomRecorder.stop();}catch(e){recordStopResolve=null;resolve();}});}
+window.mwRecordingSaved=name=>banner('Запись сохранена: '+name);
+
+function getAudioContext(){if(!audioCtx){const C=window.AudioContext||window.webkitAudioContext;if(C){audioCtx=new C();audioCtx.addEventListener('statechange',()=>{updateAudioHealth();updateOutgoingAudioTracks();});}}return audioCtx;}
+function attachLevel(id,stream){if(!id||!stream||levelNodes[id])return;try{const ctx=getAudioContext();if(!ctx)return;const source=ctx.createMediaStreamSource(stream),analyser=ctx.createAnalyser();analyser.fftSize=256;analyser.smoothingTimeConstant=.72;source.connect(analyser);if(recordDest&&String(id)!==String(stateData?.self_id||S.selfId))source.connect(recordDest);levelNodes[id]={source,analyser,data:new Uint8Array(analyser.fftSize),smooth:0};startLevelLoop();}catch(e){}}
+function detachLevel(id){const n=levelNodes[id];if(!n)return;try{n.source.disconnect();n.analyser.disconnect();}catch(e){}delete levelNodes[id];}
+function startLevelLoop(){if(levelLoop)return;levelLoop=true;requestAnimationFrame(levelTick);}
+function levelTick(ts){
+  if(closed){levelLoop=false;return;}
+  if(ts-lastLevelFrame>80){
+    lastLevelFrame=ts;
+    let topSpeaker=null,topStrength=0;
+    const liveMembers=stateData?.members||[];
+    for(const [id,n] of Object.entries(levelNodes)){
+      try{
+        n.analyser.getByteTimeDomainData(n.data);
+        let sum=0;
+        for(const x of n.data){const v=(x-128)/128;sum+=v*v;}
+        const rms=Math.sqrt(sum/n.data.length);
+        n.smooth=n.smooth*.58+rms*.42;
+        const strength=Math.max(0,Math.min(1,(n.smooth-.022)/.105));
+        const member=liveMembers.find(m=>String(m.id)===String(id));
+        const canSpeak=!!(member&&member.mic_allowed&&member.mic_enabled);
+        if(canSpeak&&strength>.14)n.lastVoiceAt=ts;
+        const active=liveSpeakerHighlight&&canSpeak&&ts-Number(n.lastVoiceAt||0)<300;
+        const tile=document.querySelector(`.seat[data-user-id="${id}"]`);
+        if(tile){
+          tile.classList.toggle('speaking',active);
+          const avatar=tile.querySelector('.avatar');
+          if(avatar&&!tile.closest('.round-8')){
+            avatar.style.boxShadow=active?'0 0 0 3px var(--live-speaker-glow,#c18aff)':'';
+          }else if(avatar){avatar.style.boxShadow='';}
+        }
+        if(active&&strength>topStrength){topStrength=strength;topSpeaker=member;}
+      }catch(e){/* Missing media should not block the room UI. */}
+    }
+    const center=document.getElementById('centralMicBtn');
+    if(center){center.classList.toggle('active-speaker',!!topSpeaker);const label=document.getElementById('micSpeaker');if(label)label.textContent=topSpeaker?'Говорит: '+topSpeaker.display_name:'В эфире';}
+  }
+  requestAnimationFrame(levelTick);
+}
+
+async function ensureLocal(){
+  if(localStream&&micStream)return localStream;
+  if(!localInit)localInit=createLocalMedia();
+  try{return await localInit;}
+  finally{localInit=null;}
+}
+async function createLocalMedia(){
+  micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1,sampleRate:48000,latency:0.01},video:IS_VIDEO?{facingMode:'user',width:{ideal:720},height:{ideal:960},frameRate:{ideal:24,max:30}}:false});
+  const ctx=getAudioContext();if(!ctx)throw new Error('Аудиодвижок недоступен');
+  mixDest=ctx.createMediaStreamDestination();recordDest=ctx.createMediaStreamDestination();
+  micSource=ctx.createMediaStreamSource(micStream);micGainNode=ctx.createGain();micGainNode.gain.value=micVolume;
+  eqLow=ctx.createBiquadFilter();eqLow.type='lowshelf';eqLow.frequency.value=180;
+  eqMid=ctx.createBiquadFilter();eqMid.type='peaking';eqMid.frequency.value=1200;eqMid.Q.value=.85;
+  eqHigh=ctx.createBiquadFilter();eqHigh.type='highshelf';eqHigh.frequency.value=6000;
+  voiceHP=ctx.createBiquadFilter();voiceHP.type='highpass';voiceHP.frequency.value=70;
+  voiceLP=ctx.createBiquadFilter();voiceLP.type='lowpass';voiceLP.frequency.value=18000;
+  micComp=ctx.createDynamicsCompressor();micComp.threshold.value=-18;micComp.knee.value=18;micComp.ratio.value=3;micComp.attack.value=.006;micComp.release.value=.16;
+  fxDry=ctx.createGain();fxDelay=ctx.createDelay(1);fxFeedback=ctx.createGain();fxWet=ctx.createGain();fxReverb=ctx.createConvolver();fxReverb.buffer=makeImpulse(ctx);fxReverbWet=ctx.createGain();micBus=ctx.createGain();
+  outGain=ctx.createGain();outGain.gain.value=0;previewGain=ctx.createGain();previewGain.gain.value=0;
+  micSource.connect(micGainNode).connect(eqLow).connect(eqMid).connect(eqHigh).connect(voiceHP).connect(voiceLP).connect(micComp);
+  micComp.connect(fxDry).connect(micBus);micComp.connect(fxDelay);fxDelay.connect(fxFeedback).connect(fxDelay);fxDelay.connect(fxWet).connect(micBus);micComp.connect(fxReverb).connect(fxReverbWet).connect(micBus);
+  micBus.connect(outGain);micBus.connect(previewGain).connect(ctx.destination);
+  sfxBus=ctx.createGain();sfxBus.gain.value=.9;sfxMonitor=ctx.createGain();sfxMonitor.gain.value=.35;sfxBus.connect(outGain);sfxBus.connect(sfxMonitor).connect(ctx.destination);
+  try{musicSource=ctx.createMediaElementSource(musicAudio);musicGainNode=ctx.createGain();musicGainNode.gain.value=.75;musicMonitor=ctx.createGain();musicMonitor.gain.value=.55;musicSource.connect(musicGainNode);musicGainNode.connect(outGain);musicGainNode.connect(musicMonitor).connect(ctx.destination);}catch(e){}
+  outGain.connect(mixDest);outGain.connect(recordDest);localStream=new MediaStream();mixDest.stream.getAudioTracks().forEach(t=>localStream.addTrack(t));if(IS_VIDEO)micStream.getVideoTracks().forEach(t=>{t.enabled=cameraOn;localStream.addTrack(t);});
+  const a=micStream.getAudioTracks()[0];if(a)a.enabled=false;attachLevel(stateData?.self_id||S.selfId,micStream);applyMixerState();syncOwnTrack();bindVideoTiles();return localStream;
+}
+function syncOwnTrack(){if(!stateData||stateData.waiting)return;const me=(stateData.members||[]).find(x=>x.id===stateData.self_id),enabled=!!(me&&me.mic_allowed&&me.mic_enabled),a=micStream?.getAudioTracks?.()[0];if(a)a.enabled=enabled;if(outGain&&audioCtx)outGain.gain.setTargetAtTime(enabled?1:0,audioCtx.currentTime,.018);}
+function updateOutgoingAudioTracks(){
+  // WebAudio starts suspended in some Android WebViews. Direct mic capture
+  // avoids sending a silent MediaStreamDestination until the user unlocks audio.
+  // Once running, switch back to the studio mixer for filters/music.
+  const mixed=mixDest?.stream?.getAudioTracks?.()[0];
+  const raw=micStream?.getAudioTracks?.()[0];
+  const selected=audioCtx?.state==='running'&&mixed?mixed:raw;
+  if(!selected)return;
+  for(const pc of Object.values(pcs)){
+    if(pc.signalingState==='closed')continue;
+    for(const sender of pc.getSenders()){
+      if(sender.track?.kind!=='audio'||sender.track===selected)continue;
+      sender.replaceTrack(selected).catch(e=>reportRtcProblem('Не удалось переключить аудиопоток: '+(e.message||'ошибка')));
+    }
+  }
+}
+function rtc(){return new RTCPeerConnection({iceCandidatePoolSize:4,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require',iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:stun.cloudflare.com:3478'}]});} // Without an authenticated short-lived TURN relay, different mobile networks may not connect; never embed TURN secrets in APK.
+function audioFor(peer){let a=document.getElementById('audio_'+peer);if(!a){a=document.createElement('audio');a.id='audio_'+peer;a.className='remoteAudio';a.autoplay=true;a.playsInline=true;a.preload='auto';a.volume=1;document.getElementById('remoteAudios').appendChild(a);}return a;}
+async function flushLocalIce(peer,pc){
+  if(!pc)return;
+  pc._iceTimer=null;
+  const batch=pc._iceBatch||[];
+  pc._iceBatch=[];
+  if(!batch.length)return;
+  try{await sendSignal(peer,'ice',{candidates:batch});}
+  catch(e){
+    // Never discard local ICE candidates just because Supabase momentarily failed.
+    if(!closed&&pcs[peer]===pc&&pc.connectionState!=='closed'){
+      pc._iceBatch=batch.concat(pc._iceBatch||[]);
+      if(!pc._iceTimer)pc._iceTimer=setTimeout(()=>flushLocalIce(peer,pc).catch(()=>{}),900);
+    }
+  }
+}
+async function createPeer(peer,initiator){
+  if(pcs[peer])return pcs[peer];
+  const stream=await ensureLocal();if(pcs[peer])return pcs[peer];
+  const pc=rtc();pcs[peer]=pc;pc._offered=false;pc._iceBatch=[];pc._createdAt=Date.now();
+  stream.getTracks().forEach(t=>pc.addTrack(t,stream));updateOutgoingAudioTracks();
+  pc.ontrack=e=>{
+    try{if(e.receiver&&'playoutDelayHint' in e.receiver)e.receiver.playoutDelayHint=0;}catch(_){}
+    const remote=e.streams&&e.streams[0]?e.streams[0]:new MediaStream([e.track]);
+    remoteStreams[peer]=remote;
+    if(remote.getAudioTracks().length){
+      attachLevel(peer,remote);const a=audioFor(peer);a.srcObject=remote;a.muted=false;a.volume=1;
+      a.play().then(()=>{playbackBlocked=false;updateAudioHealth();}).catch(err=>{playbackBlocked=true;reportRtcProblem('Воспроизведение заблокировано. Нажмите «Включить звук».');});
+    }bindVideoTiles();
+  };
+  pc.onicecandidate=e=>{if(!e.candidate)return;(pc._iceBatch||(pc._iceBatch=[])).push(e.candidate.toJSON());if(!pc._iceTimer)pc._iceTimer=setTimeout(()=>flushLocalIce(peer,pc).catch(()=>{}),90);};
+  pc.onconnectionstatechange=()=>{updateAudioHealth();if(pc.connectionState==='failed')reportRtcProblem('WebRTC не подключился: проверьте Wi-Fi и TURN-сервер.');if(['failed','closed'].includes(pc.connectionState))closePeer(peer);};
+  pc.oniceconnectionstatechange=()=>{if(pc.iceConnectionState==='failed')reportRtcProblem('ICE-соединение не установлено. Требуется сетевой TURN-ретранслятор.');updateAudioHealth();};
+  try{if(initiator)await makeOffer(peer,pc);}catch(e){reportRtcProblem('Не удалось договориться о связи: '+(e.message||'сбой'));closePeer(peer);throw e;}
+  return pc;
+}
+async function makeOffer(peer,pc){if(pc._offered||pc.signalingState!=='stable')return;pc._offered=true;const offer=await pc.createOffer({offerToReceiveAudio:true,offerToReceiveVideo:IS_VIDEO});await pc.setLocalDescription(offer);await sendSignal(peer,'offer',{sdp:offer.sdp});}
+async function syncPeers(){if(!stateData||stateData.waiting)return;await ensureLocal();const ids=(stateData.members||[]).map(x=>x.id).filter(x=>x!==stateData.self_id);for(const id of ids){if(!pcs[id])createPeer(id,String(stateData.self_id).localeCompare(String(id))<0).catch(()=>{});}Object.keys(pcs).forEach(id=>{if(!ids.includes(id))closePeer(id);});}
+async function sendSignal(to,kind,payload){try{return await rpc('mw_room_signal_send',{p_room:S.roomId,p_to:to,p_kind:kind,p_payload:payload||{}});}catch(e){reportRtcProblem('Сигнал '+kind+' не отправлен: '+(e.message||'ошибка сервера'));throw e;}}
+async function pollSignals(){if(closed||signalBusy||!stateData||stateData.waiting)return;signalBusy=true;try{const arr=await rpc('mw_room_signal_poll',{p_room:S.roomId,p_after:lastSignal});for(const s of(arr||[])){
+      // A transient WebRTC exception must not permanently acknowledge the signal.
+      const processed=await handleSignal(s);
+      if(processed===false)break;
+      lastSignal=Math.max(lastSignal,Number(s.id)||0);
+    }}catch(e){reportRtcProblem('Не удалось получить сигнал: '+(e.message||'ошибка сервера'));}finally{signalBusy=false;}}
+async function handleSignal(s){const peer=s.from_user,p=s.payload||{};try{if(s.kind==='offer'){let pc=pcs[peer];if(!pc)pc=await createPeer(peer,false);if(pc.signalingState!=='stable'&&pc.localDescription?.type==='offer'){if(String(stateData.self_id).localeCompare(String(peer))<0)return;await pc.setLocalDescription({type:'rollback'});}await pc.setRemoteDescription({type:'offer',sdp:p.sdp});await flushIce(peer,pc);const ans=await pc.createAnswer();await pc.setLocalDescription(ans);await sendSignal(peer,'answer',{sdp:ans.sdp});}else if(s.kind==='answer'){const pc=pcs[peer];if(pc&&pc.signalingState==='have-local-offer'){await pc.setRemoteDescription({type:'answer',sdp:p.sdp});await flushIce(peer,pc);}}else if(s.kind==='ice'){const cs=Array.isArray(p.candidates)?p.candidates:(p.candidate?[p.candidate]:[]);if(!cs.length)return;const pc=pcs[peer];for(const c of cs){if(pc&&pc.remoteDescription){await pc.addIceCandidate(c);}else{(iceQueue[peer]||(iceQueue[peer]=[])).push(c);}}}else if(s.kind==='bye')closePeer(peer);}catch(e){reportRtcProblem('Сбой согласования WebRTC: '+(e.message||'ошибка'));return false;}}
+async function flushIce(peer,pc){for(const c of(iceQueue[peer]||[])){try{await pc.addIceCandidate(c);}catch(e){}}iceQueue[peer]=[];}
+function closePeer(id){const pc=pcs[id];if(pc){if(pc._iceTimer)clearTimeout(pc._iceTimer);pc._iceTimer=null;pc._iceBatch=[];try{pc.close();}catch(e){}delete pcs[id];}detachLevel(id);delete remoteStreams[id];delete iceQueue[id];const a=document.getElementById('audio_'+id);if(a){try{a.srcObject=null;}catch(e){}a.remove();}if(!closed)updateAudioHealth();}
+function closeAll(){Object.keys(pcs).forEach(closePeer);}
+
+async function refreshBookState(force=false){
+  if(closed||bookBusy||!stateData||stateData.waiting)return;bookBusy=true;
+  try{const b=await rpc('mw_room_book_state',{p_room:S.roomId});const key=JSON.stringify(b||{active:false});if(force||key!==lastBookKey){const oldPath=bookState?.path;bookState=b||{active:false};lastBookKey=key;if(bookState.active&&(followBook||bookState.controller_id===stateData.self_id||oldPath!==bookState.path))localBookPage=Number(bookState.page)||0;renderBook(true);}}
+  catch(e){}finally{bookBusy=false;}
+}
+function renderBook(forceImage=false){
+  if(!stateData||stateData.waiting)return;
+  const canOpen=!!stateData.can_moderate,active=!!bookState?.active,me=stateData.self_id,isController=active&&bookState.controller_id===me;
+  document.getElementById('openBookBtn').classList.toggle('hidden',!canOpen||active);
+  document.getElementById('bookEmpty').classList.toggle('hidden',active);document.getElementById('bookViewer').classList.toggle('hidden',!active);
+  if(!active){lastBookImageKey='';return;}
+  document.getElementById('bookName').textContent=bookState.file_name||'Книга';document.getElementById('bookController').textContent='Управляет: '+(bookState.controller_name||'участник');
+  const total=Math.max(1,Number(bookState.total_pages)||1);localBookPage=Math.max(0,Math.min(total-1,Number(localBookPage)||0));
+  document.getElementById('bookPageInfo').textContent=(localBookPage+1)+' / '+total;
+  document.getElementById('followRow').classList.toggle('hidden',isController);document.getElementById('followBook').checked=followBook;
+  const allowLocalNav=isController||!followBook;document.getElementById('bookPrev').disabled=!allowLocalNav||localBookPage<=0;document.getElementById('bookNext').disabled=!allowLocalNav||localBookPage>=total-1;
+  document.getElementById('transferBookBtn').classList.toggle('hidden',!stateData.can_moderate);document.getElementById('stopBookBtn').classList.toggle('hidden',!(stateData.can_moderate||isController));
+  renderBookImage(forceImage);
+}
+function renderBookImage(force=false){
+  if(!bookState?.active)return;const key=(bookState.path||'')+'|'+localBookPage+'|'+(bookState.updated_at||'');if(!force&&key===lastBookImageKey)return;lastBookImageKey=key;
+  const img=document.getElementById('bookImage'),loading=document.getElementById('bookLoading');img.classList.add('hidden');loading.classList.remove('hidden');loading.textContent='Загружаем страницу…';
+  img.onload=()=>{loading.classList.add('hidden');img.classList.remove('hidden');};img.onerror=()=>{loading.textContent='Не удалось показать страницу';img.classList.add('hidden');};
+  img.src='https://muwahid.local/book-page?path='+encodeURIComponent(bookState.path)+'&page='+encodeURIComponent(localBookPage)+'&v='+Date.now();
+}
+async function changeBookPage(delta){
+  if(!bookState?.active)return;const total=Number(bookState.total_pages)||1,next=Math.max(0,Math.min(total-1,localBookPage+delta));if(next===localBookPage)return;
+  const isController=bookState.controller_id===stateData?.self_id;if(isController){localBookPage=next;renderBook(true);try{await rpc('mw_room_book_page',{p_room:S.roomId,p_page:next});bookState.page=next;}catch(e){banner(e.message);await refreshBookState(true);}}
+  else if(!followBook){localBookPage=next;renderBook(true);}
+}
+function toggleFollowBook(){followBook=!!document.getElementById('followBook').checked;if(followBook&&bookState?.active){localBookPage=Number(bookState.page)||0;renderBook(true);}}
+function openBookControlSheet(){
+  if(!stateData?.can_moderate||!bookState?.active)return;const arr=stateData.members||[];document.getElementById('sheetTitle').textContent='Передать управление книгой';let html='';
+  for(const m of arr)html+=`<button onclick="giveBookControl('${m.id}')">${escapeHtml(m.display_name)}${m.id===bookState.controller_id?' · сейчас управляет':''}</button>`;
+  html+='<button class="cancel" onclick="closeSheet()">Отмена</button>';document.getElementById('sheetBtns').innerHTML=html;document.getElementById('sheetWrap').style.display='flex';
+}
+async function giveBookControl(uid){closeSheet();try{await rpc('mw_room_book_controller',{p_room:S.roomId,p_user:uid});await refreshBookState(true);}catch(e){banner(e.message);}}
+async function stopBook(){try{await rpc('mw_room_book_stop',{p_room:S.roomId});bookState={active:false};lastBookKey='';renderBook(true);}catch(e){banner(e.message);}}
+window.mwBookStarted=(b)=>{bookState=b||{active:false};bookState.active=true;localBookPage=Number(bookState.page)||0;followBook=true;lastBookKey=JSON.stringify(bookState);renderBook(true);};
+
+async function pollMessages(){if(closed||messageBusy||!stateData||stateData.waiting)return;messageBusy=true;try{const arr=await rpc('mw_room_messages_get',{p_room:S.roomId,p_after:lastMessage});if((arr||[]).length){for(const m of arr){lastMessage=Math.max(lastMessage,Number(m.id)||0);applyBackgroundMessage(m);appendMessage(m);}const box=document.getElementById('chatMessages');box.scrollTop=box.scrollHeight;}}catch(e){}finally{messageBusy=false;}}
+function appendMessage(m){if(m?.media?.live_background===true)return;if(document.getElementById('msg_'+m.id))return;const box=document.getElementById('chatMessages'),mine=m.sender_id===stateData?.self_id,d=document.createElement('div');d.className='msg '+(mine?'mine':'');d.id='msg_'+m.id;let body=`<div class="sender">${escapeHtml(m.sender_name||'Участник')}</div>`;if(m.kind==='text')body+=`<div>${escapeHtml(m.body||'')}</div>`;else{const media=m.media||{},enc=encodeURIComponent(media.path||''),mime=encodeURIComponent(media.mime||'application/octet-stream'),name=encodeURIComponent(media.name||m.kind);body+=`<div class="mediaMsg" onclick="openRoomMedia('${enc}','${mime}','${name}')">${m.kind==='image'?'📷 Фото':m.kind==='video'?'🎬 Видео':'📎 Файл'} · открыть</div>`;}d.innerHTML=body;box.appendChild(d);}
+async function sendChat(){if(!stateData||stateData.waiting)return;const input=document.getElementById('chatInput'),body=input.value.trim();if(!body)return;input.value='';try{const m=await rpc('mw_room_message_send',{p_room:S.roomId,p_kind:'text',p_body:body,p_media:null});lastMessage=Math.max(lastMessage,Number(m.id)||0);appendMessage(m);const box=document.getElementById('chatMessages');box.scrollTop=box.scrollHeight;}catch(e){input.value=body;banner(e.message);}}
+function openRoomMedia(path,mime,name){MuwahidNative.openMedia(decodeURIComponent(path),decodeURIComponent(mime),decodeURIComponent(name));}
+window.mwRoomMediaSent=()=>pollMessages();
+window.leaveRoom=async function(callServer=true){
+  if(closed)return;closed=true;
+  clearTimeout(stateTimer);clearTimeout(signalTimer);clearTimeout(messageTimer);clearTimeout(bookTimer);
+  if(roomThemeSyncTimer){clearInterval(roomThemeSyncTimer);roomThemeSyncTimer=null;}
+  if(liveConfigTimer){clearInterval(liveConfigTimer);liveConfigTimer=null;}
+  // Mute immediately, even when the server is slow or the device is offline.
+  if(micStream)micStream.getTracks().forEach(t=>{t.enabled=false;try{t.stop();}catch(e){}});
+  if(localStream)localStream.getTracks().forEach(t=>{t.enabled=false;try{t.stop();}catch(e){}});
+  try{if(roomRecorder&&roomRecorder.state!=='inactive')await Promise.race([stopRoomRecording(),new Promise(r=>setTimeout(r,2200))]);}catch(e){}
+  try{musicAudio.pause();musicAudio.src='';}catch(e){}
+  try{document.getElementById('liveBackgroundVideo').pause();}catch(e){}
+  try{if(callServer){
+    // Always attempt the server exit even if disabling the microphone fails.
+    await Promise.race([rpc('mw_room_leave',{p_room:S.roomId}),new Promise(r=>setTimeout(r,3500))]);
+  }}catch(e){}
+  closeAll();detachLevel(stateData?.self_id||S.selfId);
+  micStream=null;localStream=null;
+  try{await Promise.race([audioCtx?.close()||Promise.resolve(),new Promise(r=>setTimeout(r,1000))]);}catch(e){}
+  MuwahidNative.setSpeaker(false);MuwahidNative.close();
+};
+start();
+</script>
+</body>
+</html>
