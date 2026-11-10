@@ -133,6 +133,14 @@ snippet='''    private void checkStoryMediaEncryption() throws Exception{
 '''
 one(TEST,'    private Activity activity;',snippet+'    private Activity activity;')
 one(TEST,'            checkProfileQr();','            checkProfileQr();\n            checkStoryMediaEncryption();')
+# Separate signed update candidate. The 0.13.41 baseline must stay unchanged.
+# Only the assembled story-enabled application is marked as 0.13.42 (77).
+one(Path("app/build.gradle"),"versionCode 76","versionCode 77")
+one(Path("app/build.gradle"),"versionName '0.13.41'","versionName '0.13.42'")
+one(TEST,'"0.13.41".equals(BuildConfig.VERSION_NAME)','"0.13.42".equals(BuildConfig.VERSION_NAME)')
+one(TEST,'MW_SMOKE_OK: 0.13.41 ','MW_SMOKE_OK: 0.13.42 ')
+
+
 assert 'StoriesActivity.class' in MAIN.read_text(encoding="utf-8")
 assert 'uploadStory(String objectPath' in API.read_text(encoding="utf-8")
 assert 'android:exported="false"' in MANIFEST.read_text(encoding="utf-8")
