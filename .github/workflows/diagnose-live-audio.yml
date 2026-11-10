@@ -15,3 +15,5 @@ jobs:
           unzip -q Muwahid_0.13.37_PROFILE_QR.zip -d /tmp/mw
           find /tmp/mw/Muwahid/app/src/main -type f | grep -Ei 'room|live|voice' | head -100 || true
           grep -RniE 'mw_room_signal|RTCPeerConnection|AudioTrack|AudioManager|onTrack|mic_enabled|iceServers|MediaStream|addTrack' /tmp/mw/Muwahid/app/src/main --include='*.java' --include='*.kt' | head -150 || true
+          echo '--- Voice room web media code ---'
+          python3 -c "import pathlib,re; p=pathlib.Path('/tmp/mw/Muwahid/app/src/main/assets/voice_room.html'); lines=p.read_text().splitlines(); print('Lines:',len(lines)); terms=re.compile('RTCPeerConnection|getUserMedia|ontrack|srcObject|createOffer|createAnswer|setRemoteDescription|addIceCandidate|signal|microphone|audio|muted|speaker|\.play\\(',re.I); [print(str(i+1)+': '+line[:1400]) for i,line in enumerate(lines) if terms.search(line)][:150]"
