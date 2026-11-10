@@ -21,6 +21,7 @@ public final class StoriesActivity extends Activity {
     private static final int MAX_BYTES=StoryMediaCodec.MAX_CIPHER_BYTES-StoryMediaCodec.HEADER_BYTES;
     private final Handler ui=new Handler(Looper.getMainLooper());
     private final ExecutorService io=Executors.newSingleThreadExecutor();
+    private final ExecutorService thumbnailWork=Executors.newSingleThreadExecutor();
     private Api api;
     private CryptoBox crypto;
     private JSONArray feed=new JSONArray();
@@ -225,7 +226,7 @@ public final class StoriesActivity extends Activity {
         String id=story.optString("id","");
         Bitmap cached=thumbnailCache.get(id);
         if(cached!=null){preview.setImageBitmap(cached);fallback.setVisibility(View.GONE);return;}
-        io.execute(()->{
+        thumbnailWork.execute(()->{
             byte[] original=null;Bitmap thumbnail=null;
             try{
                 original=readDecryptedMedia(story);
@@ -254,7 +255,7 @@ public final class StoriesActivity extends Activity {
                     thumbnail=BitmapFactory.decodeByteArray(original,0,original.length,sample);
                 }
                 if(thumbnail==null)throw new IOException("Нет миниатюры");
-                Bitmap scaled=Bitmap.createScaledBitmap(thumbnail,size,size*5/4,true);
+                Bitmap scaled=android.media.ThumbnailUtils.extractThumbnail(thumbnail,size,size*5/4);
                 if(scaled!=thumbnail)thumbnail.recycle();
                 thumbnailCache.put(id,scaled);
                 ui.post(()->{if(destroyed)return;preview.setImageBitmap(scaled);fallback.setVisibility(View.GONE);});
@@ -591,5 +592,5 @@ public final class StoriesActivity extends Activity {
         });
     }
     @Override public void onBackPressed(){if(viewing)renderFeed();else super.onBackPressed();}
-    @Override protected void onDestroy(){destroyed=true;viewing=false;stopPlayback();io.shutdownNow();thumbnailCache.evictAll();super.onDestroy();}
+    @Override protected void onDestroy(){destroyed=true;viewing=false;stopPlayback();io.shutdownNow();thumbnailWork.shutdownNow();thumbnailCache.evictAll();super.onDestroy();}
 }
