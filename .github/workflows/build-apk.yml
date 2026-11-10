@@ -90,6 +90,8 @@ jobs:
           patch --batch --forward --fuzz=0 -p1 < "$GITHUB_WORKSPACE/android/live-e2ee.patch"
           python3 "$GITHUB_WORKSPACE/android/remove-cat-stickers.py"
           python3 "$GITHUB_WORKSPACE/android/finish-personal-stickers.py"
+          python3 "$GITHUB_WORKSPACE/android/test-import-apk-sticker-packs.py"
+          python3 "$GITHUB_WORKSPACE/android/import-apk-sticker-packs.py"
           python3 "$GITHUB_WORKSPACE/android/prepare-live-release.py"
           VERSION_NAME="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" app/build.gradle | head -1)"
           VERSION_CODE="$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' app/build.gradle | head -1)"
