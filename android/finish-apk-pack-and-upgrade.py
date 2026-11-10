@@ -128,7 +128,9 @@ errors={
     "Google-вход ещё не активен на сервере Supabase, хотя настройка может отображаться включённой.":"Вход через Google временно недоступен. Выберите другой способ входа.",
 }
 for old,new in errors.items():
-    change_once(API,old,new)
+    # The LIVE security patch may already have replaced an error message.
+    if old in API.read_text(encoding='utf-8'):
+        change_once(API,old,new)
 
 
 src=MAIN.read_text(encoding="utf-8")
