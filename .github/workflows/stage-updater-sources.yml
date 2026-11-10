@@ -1,0 +1,32 @@
+name: Inspect automatic Android update sources
+on:
+  push:
+    branches: [fix/android-auto-updates-01338]
+permissions:
+  contents: write
+jobs:
+  inspect:
+    if: "!contains(github.event.head_commit.message, '[skip stage]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract updater sources for read-only inspection
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -q Muwahid_0.13.37_PROFILE_QR.zip -d "$RUNNER_TEMP/source"
+          src="$RUNNER_TEMP/source/Muwahid"
+          mkdir -p android/update-audit
+          for name in UpdateManager.java UpdateActivity.java; do
+            cp "$src/app/src/main/java/com/muwahid/app/$name" "android/update-audit/$name"
+          done
+          cp "$src/app/src/main/AndroidManifest.xml" android/update-audit/AndroidManifest.xml
+          grep -n -C 5 -E 'UpdateManager|checkForUpdates|updateCheck|onResume|onStart' "$src/app/src/main/java/com/muwahid/app/MainActivity.java" | head -180 > android/update-audit/main-hooks.txt || true
+          git add android/update-audit
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: stage updater sources for inspection [skip stage]"
+            git push origin HEAD:fix/android-auto-updates-01338
+          fi
