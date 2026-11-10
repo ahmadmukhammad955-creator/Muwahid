@@ -1,4 +1,4 @@
-name: Build Muwahid APK 0.13.37
+name: Build Muwahid APK 0.13.38
 
 on:
   workflow_dispatch:
@@ -25,8 +25,8 @@ jobs:
     env:
       PROJECT_ZIP: Muwahid_0.13.37_PROFILE_QR.zip
       BUNDLE_ZIP: Muwahid_0.13.37_PROFILE_QR.zip
-      EXPECTED_VERSION_NAME: '0.13.37'
-      EXPECTED_VERSION_CODE: '72'
+      EXPECTED_VERSION_NAME: '0.13.38'
+      EXPECTED_VERSION_CODE: '73'
 
     steps:
       - uses: actions/checkout@v4
@@ -64,7 +64,7 @@ jobs:
           echo "$RUNNER_TEMP/gradle-8.7/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/gradle-8.7/bin/gradle" --version
 
-      - name: Extract and verify Muwahid 0.13.37
+      - name: Verify baseline and apply family security changes
         shell: bash
         run: |
           set -euo pipefail
@@ -72,10 +72,6 @@ jobs:
           rm -rf Muwahid
           unzip -q "$BUNDLE_ZIP"
           test -f Muwahid/app/build.gradle
-          VERSION_NAME="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" Muwahid/app/build.gradle | head -1)"
-          VERSION_CODE="$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' Muwahid/app/build.gradle | head -1)"
-          test "$VERSION_NAME" = "$EXPECTED_VERSION_NAME"
-          test "$VERSION_CODE" = "$EXPECTED_VERSION_CODE"
           cd Muwahid
           sha256sum -c PROJECT_CHECKSUMS.sha256
           bash VERIFY_PROJECT.sh
@@ -88,6 +84,12 @@ jobs:
           python3 tests/check_call_ringback_01335.py
           python3 tests/check_call_ringback_runtime_01335.py
           python3 tests/check_call_camera_runtime.py
+          patch --dry-run --batch --forward --fuzz=0 -p1 < "$GITHUB_WORKSPACE/android/family-security.patch"
+          patch --batch --forward --fuzz=0 -p1 < "$GITHUB_WORKSPACE/android/family-security.patch"
+          VERSION_NAME="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" app/build.gradle | head -1)"
+          VERSION_CODE="$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' app/build.gradle | head -1)"
+          test "$VERSION_NAME" = "$EXPECTED_VERSION_NAME"
+          test "$VERSION_CODE" = "$EXPECTED_VERSION_CODE"
 
       - name: Prepare stable signing
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -128,6 +130,24 @@ jobs:
           MUWAHID_FCM_PROJECT_ID: ${{ secrets.MUWAHID_FCM_PROJECT_ID }}
         run: cd Muwahid && gradle --no-daemon assembleRelease
 
+      - name: Verify release signing against the public APK
+        if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous="$RUNNER_TEMP/Muwahid-0.13.37.apk"
+          curl --fail --location --silent --show-error --retry 3 --max-time 90 \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v0.13.37/Muwahid-0.13.37.apk" -o "$previous"
+          echo "54efec58bcd0cb3e3d9661dc48731513a8d57148adc33b17d48fc15a336792e1  $previous" | sha256sum -c
+          apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          test -x "$apksigner"
+          certificate() {
+            "$apksigner" verify --print-certs "$1" | awk '/^Signer #[0-9]+ certificate SHA-256 digest:/{print $NF}' | sort
+          }
+          previous_certificate="$(certificate "$previous")"
+          test -n "$previous_certificate"
+          test "$(certificate Muwahid/app/build/outputs/apk/release/app-release.apk)" = "$previous_certificate"
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -143,6 +163,11 @@ jobs:
           disable-animations: 'true'
           script: |
             set -eu
+            if [ "${MUWAHID_STABLE_SIGNING:-false}" = true ]; then
+              adb install "$RUNNER_TEMP/Muwahid-0.13.37.apk"
+              adb install -r Muwahid/app/build/outputs/apk/release/app-release.apk
+              adb shell dumpsys package com.muwahid.app | grep -F "versionCode=${EXPECTED_VERSION_CODE} "
+            fi
             adb install -r Muwahid/app/build/outputs/apk/debug/app-debug.apk
             adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > smoke-result.txt
@@ -158,7 +183,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.37-debug-apk
+          name: Muwahid-0.13.38-debug-apk
           path: Muwahid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: warn
 
@@ -166,7 +191,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.37
+          name: Muwahid-APK-0.13.38
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -174,7 +199,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.37-device-check
+          name: Muwahid-0.13.38-device-check
           path: |
             screenshots/
             smoke-result.txt
@@ -191,10 +216,17 @@ jobs:
           APK="$GITHUB_WORKSPACE/Muwahid/app/build/outputs/apk/release/app-release.apk"
           ASSET="Muwahid-${EXPECTED_VERSION_NAME}.apk"
           RELEASE_APK="$GITHUB_WORKSPACE/$ASSET"
+          # The family client is only released after the database gate is active.
+          CONFIG=Muwahid/app/build.gradle
+          SUPABASE_URL="$(sed -nE "s/.*'SERVER_URL', '\"([^\"]+)\"'.*/\1/p" "$CONFIG")"
+          PUBLIC_KEY="$(sed -nE "s/.*'PUBLIC_KEY', '\"([^\"]+)\"'.*/\1/p" "$CONFIG")"
+          test -n "$SUPABASE_URL" && test -n "$PUBLIC_KEY"
+          test "$(curl --fail --silent --show-error --max-time 20 "$SUPABASE_URL/rest/v1/rpc/mw_family_signup_enabled" \
+              -H "apikey: $PUBLIC_KEY" -H 'Content-Type: application/json' --data '{}')" = true
           cp "$APK" "$RELEASE_APK"
           SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
           TAG="v${EXPECTED_VERSION_NAME}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Scan a Muwahid profile QR to find the person and open a chat. Video calls support front and rear cameras."
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Family invitations, session revocation and signed update verification."
           gh release upload "$TAG" "$RELEASE_APK" --clobber
           mkdir -p updates
           jq -n \
@@ -202,7 +234,7 @@ jobs:
             --arg versionName "$EXPECTED_VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Поиск профилей Muwahid по QR-коду. Переключение передней и задней камер в видеозвонках." \
+            --arg notes "Семейные приглашения, управление сеансами и проверка подписи обновлений." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
           # Keep metadata from THIS APK, but update from the latest remote main.
           cp updates/latest.json "$RUNNER_TEMP/muwahid-latest.json"
