@@ -17,6 +17,9 @@ jobs:
           set -euo pipefail
           unzip -q Muwahid_0.13.37_PROFILE_QR.zip -d /tmp/muwahid-audio-inspect
           echo '--- Relevant source paths ---'
-          find /tmp/muwahid-audio-inspect/Muwahid/app/src -type f \\( -iname '*Live*' -o -iname '*Voice*' -o -iname '*Room*' \\) | sed 's@.*/app/src/@app/src/@' | head -80
+          find /tmp/muwahid-audio-inspect/Muwahid/app/src -type f | grep -Ei '/(live|voice|room)[^/]*\.(java|kt)
+          echo '--- Media and signaling source references ---'
+          grep -RniE 'mw_room_signal|RTCPeerConnection|AudioTrack|AudioManager|onTrack|ontrack|getUserMedia|mic_enabled|setMicrophoneEnabled|iceServers|MediaStream|addTrack|onicecandidate|onaddstream' /tmp/muwahid-audio-inspect/Muwahid/app/src/main --include='*.java' --include='*.kt' | sed -E 's@/tmp/muwahid-audio-inspect/Muwahid/@@' | head -190 || true
+ | sed 's@.*/app/src/@app/src/@' | head -80 || true
           echo '--- Media and signaling source references ---'
           grep -RniE 'mw_room_signal|RTCPeerConnection|AudioTrack|AudioManager|onTrack|ontrack|getUserMedia|mic_enabled|setMicrophoneEnabled|iceServers|MediaStream|addTrack|onicecandidate|onaddstream' /tmp/muwahid-audio-inspect/Muwahid/app/src/main --include='*.java' --include='*.kt' | sed -E 's@/tmp/muwahid-audio-inspect/Muwahid/@@' | head -190 || true
