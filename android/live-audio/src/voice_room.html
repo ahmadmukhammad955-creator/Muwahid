@@ -246,6 +246,7 @@ async function activateAudio(){
     }
     await resume;
     if(ctx.state!=='running')throw new Error('Звук заблокирован Android WebView. Нажмите «Включить звук» ещё раз.');
+    updateOutgoingAudioTracks();
     rtcProblem='';
   }catch(e){audioActivated=false;reportRtcProblem(e.message||'Не удалось запустить звук');banner(e.message||'Не удалось запустить звук');}
   updateAudioHealth();
@@ -645,7 +646,7 @@ async function toggleRecording(){if(roomRecorder&&roomRecorder.state!=='inactive
 function stopRoomRecording(){return new Promise(resolve=>{if(!roomRecorder||roomRecorder.state==='inactive'){resolve();return;}recordStopResolve=resolve;try{roomRecorder.requestData();roomRecorder.stop();}catch(e){recordStopResolve=null;resolve();}});}
 window.mwRecordingSaved=name=>banner('Запись сохранена: '+name);
 
-function getAudioContext(){if(!audioCtx){const C=window.AudioContext||window.webkitAudioContext;if(C){audioCtx=new C();audioCtx.addEventListener('statechange',updateAudioHealth);}}return audioCtx;}
+function getAudioContext(){if(!audioCtx){const C=window.AudioContext||window.webkitAudioContext;if(C){audioCtx=new C();audioCtx.addEventListener('statechange',()=>{updateAudioHealth();updateOutgoingAudioTracks();});}}return audioCtx;}
 function attachLevel(id,stream){if(!id||!stream||levelNodes[id])return;try{const ctx=getAudioContext();if(!ctx)return;const source=ctx.createMediaStreamSource(stream),analyser=ctx.createAnalyser();analyser.fftSize=256;analyser.smoothingTimeConstant=.72;source.connect(analyser);if(recordDest&&String(id)!==String(stateData?.self_id||S.selfId))source.connect(recordDest);levelNodes[id]={source,analyser,data:new Uint8Array(analyser.fftSize),smooth:0};startLevelLoop();}catch(e){}}
 function detachLevel(id){const n=levelNodes[id];if(!n)return;try{n.source.disconnect();n.analyser.disconnect();}catch(e){}delete levelNodes[id];}
 function startLevelLoop(){if(levelLoop)return;levelLoop=true;requestAnimationFrame(levelTick);}
@@ -712,6 +713,22 @@ async function createLocalMedia(){
   const a=micStream.getAudioTracks()[0];if(a)a.enabled=false;attachLevel(stateData?.self_id||S.selfId,micStream);applyMixerState();syncOwnTrack();bindVideoTiles();return localStream;
 }
 function syncOwnTrack(){if(!stateData||stateData.waiting)return;const me=(stateData.members||[]).find(x=>x.id===stateData.self_id),enabled=!!(me&&me.mic_allowed&&me.mic_enabled),a=micStream?.getAudioTracks?.()[0];if(a)a.enabled=enabled;if(outGain&&audioCtx)outGain.gain.setTargetAtTime(enabled?1:0,audioCtx.currentTime,.018);}
+function updateOutgoingAudioTracks(){
+  // WebAudio starts suspended in some Android WebViews. Direct mic capture
+  // avoids sending a silent MediaStreamDestination until the user unlocks audio.
+  // Once running, switch back to the studio mixer for filters/music.
+  const mixed=mixDest?.stream?.getAudioTracks?.()[0];
+  const raw=micStream?.getAudioTracks?.()[0];
+  const selected=audioCtx?.state==='running'&&mixed?mixed:raw;
+  if(!selected)return;
+  for(const pc of Object.values(pcs)){
+    if(pc.signalingState==='closed')continue;
+    for(const sender of pc.getSenders()){
+      if(sender.track?.kind!=='audio'||sender.track===selected)continue;
+      sender.replaceTrack(selected).catch(e=>reportRtcProblem('Не удалось переключить аудиопоток: '+(e.message||'ошибка')));
+    }
+  }
+}
 function rtc(){return new RTCPeerConnection({iceCandidatePoolSize:4,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require',iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:stun.cloudflare.com:3478'}]});} // Without an authenticated short-lived TURN relay, different mobile networks may not connect; never embed TURN secrets in APK.
 function audioFor(peer){let a=document.getElementById('audio_'+peer);if(!a){a=document.createElement('audio');a.id='audio_'+peer;a.className='remoteAudio';a.autoplay=true;a.playsInline=true;a.preload='auto';a.volume=1;document.getElementById('remoteAudios').appendChild(a);}return a;}
 async function flushLocalIce(peer,pc){
@@ -733,7 +750,7 @@ async function createPeer(peer,initiator){
   if(pcs[peer])return pcs[peer];
   const stream=await ensureLocal();if(pcs[peer])return pcs[peer];
   const pc=rtc();pcs[peer]=pc;pc._offered=false;pc._iceBatch=[];pc._createdAt=Date.now();
-  stream.getTracks().forEach(t=>pc.addTrack(t,stream));
+  stream.getTracks().forEach(t=>pc.addTrack(t,stream));updateOutgoingAudioTracks();
   pc.ontrack=e=>{
     try{if(e.receiver&&'playoutDelayHint' in e.receiver)e.receiver.playoutDelayHint=0;}catch(_){}
     const remote=e.streams&&e.streams[0]?e.streams[0]:new MediaStream([e.track]);
