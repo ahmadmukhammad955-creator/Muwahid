@@ -52,7 +52,7 @@ replace_exact(TEST,"MW_SMOKE_OK: 0.13.40 ","MW_SMOKE_OK: 0.13.41 ")
 for f in (MAIN,API):
     source=f.read_text(encoding="utf-8")
     for line in source.splitlines():
-        if 'Supabase' in line and ('"' in line or "'"'"'" in line):
+        if 'Supabase' in line and not line.lstrip().startswith('//'):
             # Allow actual API metadata and source-kind tags, but not visible strings.
             if ('source_kind' in line or 'supabase' in line.lower() and '"Supabase' not in line and 'Supabase.' not in line):
                 continue
