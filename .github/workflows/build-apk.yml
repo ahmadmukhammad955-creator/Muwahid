@@ -1,4 +1,4 @@
-name: Build Muwahid APK 0.13.41
+name: Build Muwahid APK 0.13.42
 
 on:
   workflow_dispatch:
@@ -199,7 +199,7 @@ jobs:
         if: ${{ always() && env.MUWAHID_STABLE_SIGNING != 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.41-debug-apk
+          name: Muwahid-0.13.42-debug-apk
           path: Muwahid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: warn
 
@@ -215,7 +215,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.41-device-check
+          name: Muwahid-0.13.42-device-check
           path: |
             screenshots/
             smoke-result.txt
@@ -225,7 +225,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Publish signed update
-        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.publish == true) || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Publish signed Muwahid 0.13.41'))) && github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
+        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.publish == true) || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Publish signed Muwahid 0.13.42'))) && github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
