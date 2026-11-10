@@ -1,7 +1,7 @@
 {
-  "versionCode": 70,
-  "versionName": "0.13.35",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.35/Muwahid-0.13.35.apk",
-  "sha256": "fc902d9712d4fc113f26802d2f5ae36a04fc9b757db1b102a94cd620c7d30a90",
-  "notes": "Гудок исходящего вызова до ответа собеседника; прекращается при ответе, отмене или отклонении. Сохранены LIVE, чаты и входящие звонки."
+  "versionCode": 72,
+  "versionName": "0.13.37",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.37/Muwahid-0.13.37.apk",
+  "sha256": "54efec58bcd0cb3e3d9661dc48731513a8d57148adc33b17d48fc15a336792e1",
+  "notes": "Поиск профилей Muwahid по QR-коду. Переключение передней и задней камер в видеозвонках."
 }
