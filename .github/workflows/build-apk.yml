@@ -1,4 +1,4 @@
-name: Build Muwahid APK 0.13.40
+name: Build Muwahid APK 0.13.41
 
 on:
   workflow_dispatch:
@@ -25,8 +25,8 @@ jobs:
     env:
       PROJECT_ZIP: Muwahid_0.13.37_PROFILE_QR.zip
       BUNDLE_ZIP: Muwahid_0.13.37_PROFILE_QR.zip
-      EXPECTED_VERSION_NAME: '0.13.40'
-      EXPECTED_VERSION_CODE: '75'
+      EXPECTED_VERSION_NAME: '0.13.41'
+      EXPECTED_VERSION_CODE: '76'
 
     steps:
       - uses: actions/checkout@v4
@@ -86,8 +86,11 @@ jobs:
           python3 tests/check_call_camera_runtime.py
           patch --dry-run --batch --forward --fuzz=0 -p1 < "$GITHUB_WORKSPACE/android/family-security.patch"
           patch --batch --forward --fuzz=0 -p1 < "$GITHUB_WORKSPACE/android/family-security.patch"
+          patch --dry-run --batch --forward --fuzz=0 -p1 < "$GITHUB_WORKSPACE/android/live-e2ee.patch"
+          patch --batch --forward --fuzz=0 -p1 < "$GITHUB_WORKSPACE/android/live-e2ee.patch"
           python3 "$GITHUB_WORKSPACE/android/remove-cat-stickers.py"
           python3 "$GITHUB_WORKSPACE/android/finish-personal-stickers.py"
+          python3 "$GITHUB_WORKSPACE/android/prepare-live-release.py"
           VERSION_NAME="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" app/build.gradle | head -1)"
           VERSION_CODE="$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' app/build.gradle | head -1)"
           test "$VERSION_NAME" = "$EXPECTED_VERSION_NAME"
@@ -137,10 +140,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          previous="$RUNNER_TEMP/Muwahid-0.13.39.apk"
+          previous="$RUNNER_TEMP/Muwahid-0.13.40.apk"
           curl --fail --location --silent --show-error --retry 3 --max-time 90 \
-            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v0.13.39/Muwahid-0.13.39.apk" -o "$previous"
-          echo "e10600fae97c40d3e47128c792d567f26cdaef379b0e55dfa1f9e677cd0a790b  $previous" | sha256sum -c
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v0.13.40/Muwahid-0.13.40.apk" -o "$previous"
+          echo "3bba1bc58690ba594cc5b3c6b2fbe5a26ab20950d9bf75d96aa5ef2d53ea2534  $previous" | sha256sum -c
           apksigner="$ANDROID_HOME/build-tools/34.0.0/apksigner"
           if [ ! -x "$apksigner" ]; then
             sdkmanager "build-tools;34.0.0"
@@ -176,7 +179,7 @@ jobs:
             # The emulator runner executes each script line in a separate shell.
             # Keep shell conditionals on ONE line to prevent "expecting fi" errors.
             adb wait-for-device
-            if [ "${MUWAHID_STABLE_SIGNING:-false}" = true ]; then adb install "$RUNNER_TEMP/Muwahid-0.13.39.apk" && adb install -r Muwahid/app/build/outputs/apk/release/app-release.apk && adb shell dumpsys package com.muwahid.app | grep -F "versionCode=${EXPECTED_VERSION_CODE} " && adb uninstall com.muwahid.app; fi
+            if [ "${MUWAHID_STABLE_SIGNING:-false}" = true ]; then adb install "$RUNNER_TEMP/Muwahid-0.13.40.apk" && adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk && adb shell am instrument -w -e phase seed com.muwahid.app.test/com.muwahid.app.UpgradeInstrumentation > upgrade-seed.txt && grep -F UPGRADE_SEED_OK upgrade-seed.txt && adb install -r Muwahid/app/build/outputs/apk/release/app-release.apk && adb shell dumpsys package com.muwahid.app | grep -F "versionCode=${EXPECTED_VERSION_CODE} " && adb shell am instrument -w -e phase verify com.muwahid.app.test/com.muwahid.app.UpgradeInstrumentation > upgrade-result.txt && grep -F UPGRADE_DATA_OK upgrade-result.txt && adb uninstall com.muwahid.app; fi
             adb install -r Muwahid/app/build/outputs/apk/debug/app-debug.apk
             adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > smoke-result.txt
@@ -192,7 +195,7 @@ jobs:
         if: ${{ always() && env.MUWAHID_STABLE_SIGNING != 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.40-debug-apk
+          name: Muwahid-0.13.41-debug-apk
           path: Muwahid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: warn
 
@@ -200,7 +203,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.40
+          name: Muwahid-APK-0.13.41
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -208,7 +211,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.40-device-check
+          name: Muwahid-0.13.41-device-check
           path: |
             screenshots/
             smoke-result.txt
@@ -216,7 +219,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Publish signed update
-        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.publish == true) || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Publish signed Muwahid 0.13.40'))) && github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
+        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.publish == true) || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Publish signed Muwahid 0.13.41'))) && github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -235,7 +238,7 @@ jobs:
           cp "$APK" "$RELEASE_APK"
           SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
           TAG="v${EXPECTED_VERSION_NAME}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Remove both built-in cat and cloud sticker packs; import your own private stickers by file or HTTPS link, and save received stickers as private copies."
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Encrypt LIVE chat, photos, videos, backgrounds and PDFs for verified participants. Preserve private sticker imports and verify data retention on Android updates."
           gh release upload "$TAG" "$RELEASE_APK" --clobber
           mkdir -p updates
           jq -n \
@@ -243,7 +246,7 @@ jobs:
             --arg versionName "$EXPECTED_VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Удалены встроенные наборы «Кот Мува» и «Облачко». Личные стикеры можно импортировать из телефона или по HTTPS-ссылке, полученные стикеры — сохранить себе." \
+            --arg notes "Шифрование чата LIVE, фото, видео, фонов и PDF для участников с проверенными ключами. Сохранены личные стикеры и данные при обновлении." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
           # Keep metadata from THIS APK, but update from the latest remote main.
           cp updates/latest.json "$RUNNER_TEMP/muwahid-latest.json"
