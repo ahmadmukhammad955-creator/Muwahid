@@ -1,7 +1,7 @@
 {
-  "versionCode": 76,
-  "versionName": "0.13.41",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.41/Muwahid-0.13.41.apk",
-  "sha256": "db0d6b752506d0c13fc014a2a922a6249451f4919dae13d77d57f4fbcf0d88fc",
-  "notes": "Добавлен импорт целых совместимых наборов стикеров из APK/ZIP одним действием. Стикеры сохраняются в личную коллекцию с индикатором прогресса. Исправлены ошибки сохранения и убраны технические надписи. Также усилена защита содержимого LIVE."
+  "versionCode": 77,
+  "versionName": "0.13.42",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.42/Muwahid-0.13.42.apk",
+  "sha256": "24897e6b5ef1229417d053400ab4cd824982278703b1959c617c4ffe2471ce1f",
+  "notes": "Истории контактов, личный архив через 24 часа, реакции, ответы в защищённом чате и профиль. Сохраняются прежние сообщения и данные приложения."
 }
