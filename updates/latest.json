@@ -1,7 +1,7 @@
 {
-  "versionCode": 73,
-  "versionName": "0.13.38",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.38/Muwahid-0.13.38.apk",
-  "sha256": "c08f02373dd61e979a8950f7acb83a3df78d4a7a5cab62e8dfd55473d11bafc0",
-  "notes": "Семейные приглашения, управление сеансами, защита личной переписки и проверка подписи обновлений."
+  "versionCode": 74,
+  "versionName": "0.13.39",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.39/Muwahid-0.13.39.apk",
+  "sha256": "e10600fae97c40d3e47128c792d567f26cdaef379b0e55dfa1f9e677cd0a790b",
+  "notes": "Удалён встроенный набор «Кот Мува» из каталога и переписки, сохранены личные стикеры и защита сообщений."
 }
