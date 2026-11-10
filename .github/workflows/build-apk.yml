@@ -1,4 +1,4 @@
-name: Build Muwahid APK 0.13.35
+name: Build Muwahid APK 0.13.37
 
 on:
   workflow_dispatch:
@@ -23,10 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      PROJECT_ZIP: Muwahid_0.13.35_CALL_RINGBACK.zip
-      BUNDLE_ZIP: Muwahid_0.13.35_CALL_RINGBACK.zip
-      EXPECTED_VERSION_NAME: '0.13.35'
-      EXPECTED_VERSION_CODE: '70'
+      PROJECT_ZIP: Muwahid_0.13.37_PROFILE_QR.zip
+      BUNDLE_ZIP: Muwahid_0.13.37_PROFILE_QR.zip
+      EXPECTED_VERSION_NAME: '0.13.37'
+      EXPECTED_VERSION_CODE: '72'
 
     steps:
       - uses: actions/checkout@v4
@@ -64,7 +64,7 @@ jobs:
           echo "$RUNNER_TEMP/gradle-8.7/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/gradle-8.7/bin/gradle" --version
 
-      - name: Extract and verify Muwahid 0.13.35
+      - name: Extract and verify Muwahid 0.13.37
         shell: bash
         run: |
           set -euo pipefail
@@ -87,6 +87,7 @@ jobs:
           python3 tests/check_live_lobby_01334.py
           python3 tests/check_call_ringback_01335.py
           python3 tests/check_call_ringback_runtime_01335.py
+          python3 tests/check_call_camera_runtime.py
 
       - name: Prepare stable signing
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -157,7 +158,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.35-debug-apk
+          name: Muwahid-0.13.37-debug-apk
           path: Muwahid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: warn
 
@@ -165,7 +166,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.35
+          name: Muwahid-APK-0.13.37
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -173,7 +174,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.35-device-check
+          name: Muwahid-0.13.37-device-check
           path: |
             screenshots/
             smoke-result.txt
@@ -193,7 +194,7 @@ jobs:
           cp "$APK" "$RELEASE_APK"
           SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
           TAG="v${EXPECTED_VERSION_NAME}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Outgoing ringback plays while dialing and stops on answer, rejection or cancellation; LIVE chat and existing features preserved."
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Scan a Muwahid profile QR to find the person and open a chat. Video calls support front and rear cameras."
           gh release upload "$TAG" "$RELEASE_APK" --clobber
           mkdir -p updates
           jq -n \
@@ -201,7 +202,7 @@ jobs:
             --arg versionName "$EXPECTED_VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Гудок исходящего вызова до ответа собеседника; прекращается при ответе, отмене или отклонении. Сохранены LIVE, чаты и входящие звонки." \
+            --arg notes "Поиск профилей Muwahid по QR-коду. Переключение передней и задней камер в видеозвонках." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
           # Keep metadata from THIS APK, but update from the latest remote main.
           cp updates/latest.json "$RUNNER_TEMP/muwahid-latest.json"
