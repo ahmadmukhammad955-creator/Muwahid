@@ -67,8 +67,10 @@ replace_one(TEST,
     'for(String label:new String[]{"Облачко","Стикеры и эмодзи"})if(findText(decor,label)==null)'
     'throw new AssertionError("Missing sticker pack: "+label);'
     'if(findText(decor,"Кот Мува")!=null)throw new AssertionError("Retired cat pack remains visible");')
-replace_one(TEST, 'for(int id=0;id<12;id++){', 'for(int id=6;id<12;id++){')  # replaced one at a time below
-replace_one(TEST, 'for(int id=0;id<12;id++){', 'for(int id=6;id<12;id++){')
+sticker_test = Path(TEST)
+test_source = sticker_test.read_text(encoding="utf-8")
+assert test_source.count('for(int id=0;id<12;id++){') == 2, "Unexpected sticker test layout"
+sticker_test.write_text(test_source.replace('for(int id=0;id<12;id++){', 'for(int id=6;id<12;id++){'), encoding="utf-8")
 replace_one(TEST, 'if(hashes.size()!=12)throw new AssertionError("Duplicate sticker artwork");',
     'if(hashes.size()!=6)throw new AssertionError("Duplicate sticker artwork");\n'
     '            if(StickerCatalog.isAvailable(0)||StickerCatalog.isAvailable(5)||!StickerCatalog.isAvailable(6))'
