@@ -27,7 +27,7 @@ def main():
             '  void onActivityResult(int requestCode,int resultCode,Object data){\n'
             '    else if(requestCode==REQ_STICKER_IMPORT&&resultCode==RESULT_CANCELED){pendingStickerPackId="";}\n'
             '  }\n'
-            '  private void launchStickerImportPicker(){}\n'
+            '    private void launchStickerImportPicker(){}\n'
             '}\n',
             encoding="utf-8",
         )
