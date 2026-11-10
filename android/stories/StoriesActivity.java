@@ -465,7 +465,7 @@ public final class StoriesActivity extends Activity {
                             .setTitle("Пока нет получателей")
                             .setMessage("Для защищённой публикации нужен хотя бы один контакт с подтверждённым ключом. Откройте личный чат, сверьте код безопасности с собеседником и подтвердите ключ. После этого можно опубликовать историю.")
                             .setNegativeButton("Закрыть",null)
-                            .setPositiveButton("Перейти к чатам",(d,w)->finish())
+                            .setPositiveButton("Вернуться в приложение",(d,w)->finish())
                             .show();
                         return;
                     }
