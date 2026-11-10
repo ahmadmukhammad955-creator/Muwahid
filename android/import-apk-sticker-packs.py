@@ -102,6 +102,7 @@ methods=r'''
                 if(packs==null||packs.length()==0||packs.length()>40)
                     throw new Exception("В APK нет корректного списка наборов стикеров");
                 int imported=0;
+                long importedBytes=0;
                 for(int p=0;p<packs.length();p++){
                     org.json.JSONObject pack=packs.optJSONObject(p);
                     if(pack==null)continue;
@@ -124,6 +125,8 @@ methods=r'''
                         try{bytes=readStickerZipEntry(zip,item,10*1024*1024);}
                         catch(Exception ignored){continue;}
                         if(detectStickerMime(bytes,file)==null)continue;
+                        if(imported>=500||importedBytes+bytes.length>150L*1024*1024)
+                            throw new Exception("Ограничение импорта: 500 стикеров или 150 МБ");
                         if(personalPackId.isEmpty()){
                             personalPackId=String.valueOf(api.rpc("mw_sticker_create_pack",
                                new org.json.JSONObject().put("p_title",title)
@@ -134,6 +137,7 @@ methods=r'''
                         }
                         importStickerBytesBlocking(bytes,file,"",personalPackId,"file");
                         imported++;
+                        importedBytes+=bytes.length;
                     }
                 }
                 if(imported==0)throw new Exception("В APK не найдено совместимых PNG, JPG, WebP, GIF, WebM или TGS стикеров");
@@ -149,8 +153,9 @@ methods=r'''
         if(inbound==null)return;
         String action=inbound.getAction();
         if(!Intent.ACTION_SEND.equals(action)&&!Intent.ACTION_VIEW.equals(action))return;
+        Object extra=Intent.ACTION_SEND.equals(action)?inbound.getParcelableExtra(Intent.EXTRA_STREAM):null;
         Uri uri=Intent.ACTION_VIEW.equals(action)?inbound.getData():
-            (Uri)inbound.getParcelableExtra(Intent.EXTRA_STREAM);
+            (extra instanceof Uri?(Uri)extra:null);
         if(uri==null)return;
         String type=inbound.getType();
         String segment=uri.getLastPathSegment();
