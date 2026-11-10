@@ -1,9 +1,11 @@
-# LIVE content encryption candidate
+# LIVE content encryption — Muwahid 0.13.41
 
 This branch implements encryption for LIVE text, stickers sent as text, photos,
 videos, photo/video backgrounds and shared PDF contents. Live audio/video streams,
 screen sharing and music mixed into those streams are unchanged and are not covered
-by this claim. Production stays on the published 0.13.38 until a coordinated release.
+by this claim. The release is integrated with the existing 0.13.40 sticker features. The additive
+server migration 20261110173535_live_content_e2ee is deployed; plaintext cutover is
+separate and must follow publication of the signed 0.13.41 APK.
 
 ## Construction and boundaries
 
@@ -57,15 +59,30 @@ follow existing export/cache behavior; this patch does not encrypt those exports
 - Cutover was also transaction-tested: the new send succeeded while the legacy
   plaintext RPC and old file-upload path were rejected. The encrypted file path
   remained writable under existing membership policies. All changes rolled back.
-- Physical two-phone interoperability, eight simultaneous devices, API 23,
-  release signing/in-place upgrade and post-cutover end-to-end network tests remain
-  release gates. LIVE audio quality is not tested by the content encryption tests.
+- Real HTTPS/Auth/Storage round trips passed 19 checks using three isolated synthetic
+  accounts. Two recipients exchanged Tink ciphertext and independently recovered
+  exact text, metadata and file bytes. Outsider/anonymous/waiting users were denied;
+  replay, plaintext and stale recipient snapshots were rejected. After removal,
+  the member could not fetch the key envelope, room history or a new Storage object.
+  This harness uses Python Tink with the same wire format; native Android crypto is
+  tested separately by instrumentation. It is not a physical two-phone test.
+- Previously downloaded ciphertext was still returned by the Storage CDN after
+  member removal (HTTP 200). The app checks the uncached RPC before opening an
+  encrypted file, and future items omit the removed user's wrapped key. New uploads
+  use max-age=0 for client caching; this does not purge the CDN. Already delivered
+  plaintext/keys cannot be recalled. See the Supabase private-storage cache notice:
+  https://supabase.com/kb/troubleshooting/storage-private-bucket-files-still-accessible-after-remove-access-or-logout
+- Physical two-phone interoperability, eight simultaneous devices and API 23 remain
+  untested. LIVE audio quality is not tested by content encryption tests.
+- The release workflow tests 0.13.40 → 0.13.41 with the same certificate and checks
+  that preferences and Android-Keystore-encrypted session-shaped test data survive.
+  This uses synthetic data on an emulator, not a real family's signed-in session.
 
 ## Rollout
 
-1. Generate/apply the additive migration from candidates/live_content_e2ee.sql.
+1. Additive migration is applied and recorded in supabase/migrations/20261110173535_live_content_e2ee.sql.
 2. Publish a new version/code signed with the existing release certificate only
-   after the release gates pass. Do not replace the 0.13.38 release or its manifest.
+   after build, signing, emulator and network checks pass. Existing releases are not overwritten.
 3. Update family devices and verify an encrypted item across real sessions.
 4. Apply candidates/live_content_e2ee_cutover.sql to reject old plaintext sends
    and old upload paths. Without this cutover, old clients still send plaintext.

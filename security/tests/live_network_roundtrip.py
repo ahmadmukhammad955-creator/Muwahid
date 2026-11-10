@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 aead.register()
 p=pathlib.Path(sys.argv[1]);state=json.loads(p.read_text());accounts=state['accounts']
+assert len(accounts)==3 and all(a['email'].startswith('muwahid-live-test-'+state['run']+'-') and a['email'].endswith('@example.invalid') for a in accounts), 'Only dedicated synthetic accounts are allowed'
 URL='https://pucxqnegbnjzawzwnpjh.supabase.co';APIKEY=os.environ['MUWAHID_TEST_PUBLISHABLE_KEY']
 reports=[];objects=[];stop=threading.Event();joined=set();room=None
 

@@ -1,0 +1,27 @@
+{
+  "passed": [
+    "closed room queues new participant",
+    "waiting participant denied keys",
+    "exact two-recipient snapshot",
+    "ciphertext upload succeeds",
+    "server stores ciphertext unchanged",
+    "recipient decrypts exact text and metadata",
+    "recipient decrypts exact Storage bytes",
+    "outsider denied file envelope",
+    "outsider denied Storage file",
+    "anonymous denied file envelope",
+    "anonymous denied Storage file",
+    "plaintext rejected by secure RPC",
+    "replayed item rejected",
+    "stale recipient snapshot rejected after removal",
+    "removed participant denied file envelope",
+    "new encrypted object uploaded after removal",
+    "removed participant denied new Storage object",
+    "removed participant denied room history",
+    "new keys exclude removed participant"
+  ],
+  "count": 19,
+  "revoked_sessions_rejected": 3,
+  "cleanup": "Both test Storage objects and all test rooms removed; three test sessions revoked and three test accounts removed.",
+  "cached_old_ciphertext_http_after_removal": 200
+}

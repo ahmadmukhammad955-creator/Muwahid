@@ -216,6 +216,8 @@ jobs:
             screenshots/
             smoke-result.txt
             crash-log.txt
+            upgrade-seed.txt
+            upgrade-result.txt
           if-no-files-found: warn
 
       - name: Publish signed update
@@ -239,7 +241,7 @@ jobs:
           SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
           TAG="v${EXPECTED_VERSION_NAME}"
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Encrypt LIVE chat, photos, videos, backgrounds and PDFs for verified participants. Preserve private sticker imports and verify data retention on Android updates."
-          gh release upload "$TAG" "$RELEASE_APK" --clobber
+          gh release upload "$TAG" "$RELEASE_APK"
           mkdir -p updates
           jq -n \
             --argjson versionCode "$EXPECTED_VERSION_CODE" \
@@ -253,6 +255,8 @@ jobs:
           git restore --staged --worktree updates/latest.json || true
           git fetch origin main
           git switch -C muwahid-release-meta origin/main
+          published_code="$(jq -r .versionCode updates/latest.json)"
+          if [ "$published_code" -gt "$EXPECTED_VERSION_CODE" ]; then echo "A newer release is already published; keeping its update manifest."; exit 0; fi
           cp "$RUNNER_TEMP/muwahid-latest.json" updates/latest.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
