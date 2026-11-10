@@ -14,7 +14,7 @@ index c513ec6..cdd378f 100644
          buildConfigField 'String', 'PUBLIC_KEY', '"sb_publishable_Mtsx-WuCfSPIyxjOlo-9dw_x6Xxbe6p"'
          buildConfigField 'String', 'FCM_APP_ID', '"' + fcmAppId + '"'
 diff --git a/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java b/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java
-index f54619f..c8e6f51 100644
+index f54619f..e7a3904 100644
 --- a/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java
 +++ b/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java
 @@ -150,6 +150,58 @@ public class SmokeInstrumentation extends Instrumentation {
@@ -89,7 +89,16 @@ index f54619f..c8e6f51 100644
              capture("welcome.png");
              checkPhoneEntry();
  
-@@ -323,7 +376,7 @@ public class SmokeInstrumentation extends Instrumentation {
+@@ -228,6 +281,8 @@ public class SmokeInstrumentation extends Instrumentation {
+             capture("sticker_settings.png");
+             java.util.HashSet<Integer> hashes=new java.util.HashSet<>();
+             CryptoBox cb=new CryptoBox(getTargetContext());String alice="sticker-test-alice",bob="sticker-test-bob";String ak=cb.publicKey(alice),bk=cb.publicKey(bob);
++            cb.verifyPeer(alice,"sticker-test-chat",bk);
++            cb.verifyPeer(bob,"sticker-test-chat",ak);
+             for(int id=0;id<12;id++){
+                 byte[] png=StickerCatalog.png(id);Bitmap decoded=android.graphics.BitmapFactory.decodeByteArray(png,0,png.length);
+                 if(decoded==null||decoded.getWidth()!=384||android.graphics.Color.alpha(decoded.getPixel(0,0))!=0)throw new AssertionError("Invalid transparent sticker "+id);
+@@ -323,7 +378,7 @@ public class SmokeInstrumentation extends Instrumentation {
                  checkedOnMain(()->locked.finish());waitForIdleSync();
              }
              getTargetContext().getSharedPreferences("muwahid",0).edit().putBoolean("app_lock",false).commit();
