@@ -37,8 +37,10 @@ def main():
             '</activity></application></manifest>',
             encoding="utf-8",
         )
-        subprocess.run([sys.executable, str(SCRIPT)], cwd=root, check=True,
-                       capture_output=True, text=True)
+        result = subprocess.run([sys.executable, str(SCRIPT)], cwd=root,
+                                capture_output=True, text=True)
+        if result.returncode:
+            raise AssertionError("Importer exited with error:\n" + result.stdout + result.stderr)
         j = java.read_text(encoding="utf-8")
         x = manifest.read_text(encoding="utf-8")
         for expected in (
