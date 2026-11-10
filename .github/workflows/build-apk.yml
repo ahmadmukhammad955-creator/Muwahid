@@ -172,7 +172,14 @@ jobs:
           disable-animations: 'true'
           script: |
             set -eu
-            if [ "${MUWAHID_STABLE_SIGNING:-false}" = true ]; then adb install "$RUNNER_TEMP/Muwahid-0.13.37.apk" && adb install -r Muwahid/app/build/outputs/apk/release/app-release.apk && adb shell dumpsys package com.muwahid.app | grep -F "versionCode=${EXPECTED_VERSION_CODE} "; fi
+            if [ "${MUWAHID_STABLE_SIGNING:-false}" = true ]; then
+              # Verify an in-place upgrade with the actual previous public signed APK.
+              adb install "$RUNNER_TEMP/Muwahid-0.13.38.apk"
+              adb install -r Muwahid/app/build/outputs/apk/release/app-release.apk
+              adb shell dumpsys package com.muwahid.app | grep -F "versionCode=${EXPECTED_VERSION_CODE} "
+              # Android debug and release use different signing identities.
+              adb uninstall com.muwahid.app
+            fi
             adb install -r Muwahid/app/build/outputs/apk/debug/app-debug.apk
             adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > smoke-result.txt
