@@ -211,7 +211,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Publish signed update
-        if: ${{ success() && github.event_name == 'workflow_dispatch' && inputs.publish == true && github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
+        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.publish == true) || (github.event_name == 'push' && github.event.head_commit.message == 'Publish signed Muwahid 0.13.38')) && github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -230,7 +230,7 @@ jobs:
           cp "$APK" "$RELEASE_APK"
           SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
           TAG="v${EXPECTED_VERSION_NAME}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Family invitations, session revocation and signed update verification."
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Family invitations, session revocation, private messaging protection and signed update verification."
           gh release upload "$TAG" "$RELEASE_APK" --clobber
           mkdir -p updates
           jq -n \
@@ -238,7 +238,7 @@ jobs:
             --arg versionName "$EXPECTED_VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Семейные приглашения, управление сеансами и проверка подписи обновлений." \
+            --arg notes "Семейные приглашения, управление сеансами, защита личной переписки и проверка подписи обновлений." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
           # Keep metadata from THIS APK, but update from the latest remote main.
           cp updates/latest.json "$RUNNER_TEMP/muwahid-latest.json"

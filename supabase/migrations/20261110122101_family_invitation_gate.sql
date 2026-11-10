@@ -3,6 +3,9 @@ lock table auth.users in share row exclusive mode;
 
 do $preflight$
 begin
+  if to_regprocedure('mw_private.account_is_suspended(uuid)') is null then
+    raise exception 'Family gate requires the account suspension migration';
+  end if;
   if (select count(*) from mw_private.owner_account o
       join public.mw_profiles p on p.id=o.user_id
       join auth.mfa_factors f on f.user_id=o.user_id and f.status='verified') < 1 then
@@ -58,7 +61,8 @@ $$;
 create function mw_private.family_has_access()
 returns boolean language sql stable security definer set search_path = ''
 as $$
-  select mw_private.family_session_active()
+  select not mw_private.account_is_suspended(auth.uid())
+    and mw_private.family_session_active()
     and exists (select 1 from mw_private.family_members m where m.user_id=auth.uid() and m.state='active')
     and (coalesce(auth.jwt()->>'aal','')='aal2'
          or not exists (select 1 from auth.mfa_factors where user_id=auth.uid() and status='verified'));
@@ -70,6 +74,9 @@ as $$
 declare member_state text;
 begin
   if auth.uid() is null then raise exception 'MW:Войдите в аккаунт'; end if;
+  if mw_private.account_is_suspended(auth.uid()) then
+    raise exception 'MW:ACCOUNT_SUSPENDED' using errcode='42501';
+  end if;
   if not mw_private.family_session_active() then raise exception 'MW:Сеанс отозван. Войдите заново.'; end if;
   select m.state into member_state from mw_private.family_members m where m.user_id=auth.uid();
   if member_state='pending' then raise exception 'MW:Ожидается подтверждение владельца'; end if;
@@ -206,6 +213,7 @@ create function public.mw_family_access_status()
 returns text language sql stable security definer set search_path = ''
 as $$
   select case
+    when mw_private.account_is_suspended(caller.user_id) then 'revoked'
     when m.state='pending' then 'pending'
     when m.state is distinct from 'active' then 'revoked'
     when not mw_private.family_session_active() then 'session_revoked'
@@ -300,7 +308,8 @@ CREATE OR REPLACE FUNCTION mw_private.privacy_allows(p_owner uuid, p_actor uuid,
  STABLE SECURITY DEFINER
  SET search_path TO ''
 AS $function$
- select exists (select 1 from mw_private.family_members m where m.user_id=p_owner and m.state='active')
+ select not mw_private.account_is_suspended(p_owner)
+ and exists (select 1 from mw_private.family_members m where m.user_id=p_owner and m.state='active')
  and (p_owner=p_actor or (
   not exists(select 1 from public.mw_blocks b where (b.user_id=p_owner and b.person_id=p_actor) or (b.user_id=p_actor and b.person_id=p_owner))
   and case coalesce((select case p_kind when 'messages' then v.messages when 'calls' then v.calls when 'phone_search' then v.phone_search else 'nobody' end from public.mw_privacy v where v.user_id=p_owner),'everyone')

@@ -20,13 +20,17 @@ begin
   end if;
 
   for current_member in
-    select distinct on (s.user_id) s.id,s.user_id from auth.sessions s
-    where s.not_after is null or s.not_after>now() order by s.user_id,s.id
+    select distinct on (s.user_id) s.id,s.user_id,mw_private.account_is_suspended(s.user_id) as suspended
+    from auth.sessions s where s.not_after is null or s.not_after>now() order by s.user_id,s.id
   loop
     execute 'set local role authenticated';
     perform set_config('request.jwt.claims',jsonb_build_object('sub',current_member.user_id,'session_id',current_member.id,'aal','aal2','role','authenticated')::text,true);
-    if public.mw_family_access_status()<>'active' then raise exception 'Existing session was blocked'; end if;
-    perform public.mw_chat_list();
+    if current_member.suspended then
+      if public.mw_family_access_status()<>'revoked' then raise exception 'Suspended session regained access'; end if;
+    else
+      if public.mw_family_access_status()<>'active' then raise exception 'Existing session was blocked'; end if;
+      perform public.mw_chat_list();
+    end if;
     execute 'reset role';
   end loop;
 
@@ -97,6 +101,24 @@ begin
   exception when raise_exception then
     if sqlerrm <> 'MW:Доступ только для владельца' then raise; end if;
   end;
+
+  execute 'reset role';
+  insert into mw_private.account_security_state(user_id,suspended_at,incident_id)
+    values(new_id,now(),gen_random_uuid())
+    on conflict(user_id) do update set suspended_at=excluded.suspended_at, incident_id=excluded.incident_id;
+  execute 'set local role authenticated';
+  if public.mw_family_access_status()<>'revoked' then
+    raise exception 'Family gate bypassed account suspension';
+  end if;
+  begin
+    perform public.mw_chat_list();
+    raise exception 'Suspended member accessed chats';
+  exception when insufficient_privilege then
+    if sqlerrm <> 'MW:ACCOUNT_SUSPENDED' then raise; end if;
+  end;
+  execute 'reset role';
+  delete from mw_private.account_security_state where user_id=new_id;
+  execute 'set local role authenticated';
 
   if not public.mw_family_session_revoke(new_other_session) then raise exception 'Device revocation failed'; end if;
   perform set_config('request.jwt.claims',jsonb_build_object('sub',new_id,'session_id',new_other_session,'aal','aal2','role','authenticated')::text,true);

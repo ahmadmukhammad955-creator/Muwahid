@@ -5,11 +5,10 @@ The Android changes apply to the checked-in 0.13.37 source archive. The candidat
 ## Database
 
 - Migration `20261110074440_harden_messenger_access.sql` is already present in production. The accompanying SQL checks exercise chat authorization, call authorization and the Storage policy with simulated client roles.
-- Keep the family gate migration staged until the scheduled database backup or restore point and a separate Storage backup have been verified. Confirm the family owner has a working second factor. Check that Auth email confirmation and SMTP work for an address outside the Supabase organization.
-- Test the family gate on a restored or isolated project with email, Google and phone settings that match production. Verify that existing email, Google and phone sign-ins still work. Confirm new Google or phone signup fails and invited email registration and approval work end to end.
-- During rollout, apply the gate migration and deploy both updated AI Edge Functions. Keep the existing cleanup Edge Function and its credentials. Run the SQL checks, then exercise Storage, Realtime and AI using actual approved, pending and revoked test sessions.
-- The migration initially keeps every existing Auth account active. The owner reviews the member list and removes unfamiliar accounts through the owner panel. No chat or account history is deleted.
-- If the gate needs to be suspended, prefer a targeted recovery migration with an audited change to the affected account. Dropping membership or invitations would lose approval state and could reopen signup.
+- Migration `20261110122101_family_invitation_gate.sql` is active in production. The transaction checks covered existing sessions, missing, expired and replayed invitations, owner approval, session revocation and account suspension. Existing Auth accounts were retained.
+- Both AI Edge Functions require an active family session and retain their existing JWT requirements.
+- The server-side registration tests simulate the database and session roles. Verify actual email delivery and invitation redemption with an invited relative before relying on the flow.
+- An emergency rollback is documented in `supabase/rollback/family_invitation_gate.sql`. It retains family records and restores the pre-activation database authorization functions. If restoring the earlier behavior of the AI services is required, restore their pre-activation versions separately.
 
 ## Android release
 
