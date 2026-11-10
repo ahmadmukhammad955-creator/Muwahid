@@ -8,7 +8,7 @@ on:
         type: boolean
         default: false
   push:
-    branches: [main]
+    branches: [main, fix/live-audio-20261110]
   pull_request:
 
 permissions:
@@ -86,6 +86,9 @@ jobs:
           python3 tests/check_call_camera_runtime.py
           patch --dry-run --batch --forward --fuzz=0 -p1 < "$GITHUB_WORKSPACE/android/family-security.patch"
           patch --batch --forward --fuzz=0 -p1 < "$GITHUB_WORKSPACE/android/family-security.patch"
+          # LIVE changes are overlaid into the Android project after signature-safe baseline checks.
+          cp "$GITHUB_WORKSPACE/android/live-audio/src/voice_room.html" app/src/main/assets/voice_room.html
+          python3 "$GITHUB_WORKSPACE/android/live-audio/check_live_audio.py" app/src/main/assets/voice_room.html
           VERSION_NAME="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" app/build.gradle | head -1)"
           VERSION_CODE="$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' app/build.gradle | head -1)"
           test "$VERSION_NAME" = "$EXPECTED_VERSION_NAME"
