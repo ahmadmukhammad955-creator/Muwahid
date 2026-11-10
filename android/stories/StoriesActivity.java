@@ -244,30 +244,83 @@ public final class StoriesActivity extends Activity {
         }
     }
     private void renderContact(LinearLayout body){
-        LinearLayout header=vertical();header.setPadding(dp(17),dp(22),dp(17),dp(17));header.setBackground(rounded(Color.rgb(22,41,57),21));
+        LinearLayout card=vertical();
+        card.setPadding(dp(16),dp(20),dp(16),dp(18));
+        card.setBackground(rounded(surfaceColor(),20));
+
+        if(contact.length()==0){
+            TextView loading=text("Загружаем данные контакта…",15,mutedColor());
+            card.addView(loading);body.addView(card);return;
+        }
         String name=contact.optString("display_name",personName);
         if(name==null||name.trim().isEmpty())name="Контакт";
-        TextView avatar=text(name.substring(0,1).toUpperCase(Locale.ROOT),39,white());avatar.setGravity(Gravity.CENTER);
-        avatar.setBackground(rounded(Color.rgb(27,125,158),66));LinearLayout.LayoutParams avp=new LinearLayout.LayoutParams(dp(110),dp(110));avp.gravity=Gravity.CENTER_HORIZONTAL;header.addView(avatar,avp);
-        TextView display=text(name,22,white());display.setTypeface(null,1);display.setGravity(Gravity.CENTER);display.setPadding(0,dp(12),0,dp(4));header.addView(display);
+        boolean self=api.uid().equals(contact.optString("id",""));
+        LinearLayout identity=horizontal();
+        TextView avatar=text(name.substring(0,1).toUpperCase(Locale.ROOT),34,white());
+        avatar.setGravity(Gravity.CENTER);
+        GradientDrawable avatarCircle=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+            new int[]{Color.rgb(19,133,153),Color.rgb(28,171,141)});
+        avatarCircle.setShape(GradientDrawable.OVAL);
+        avatar.setBackground(avatarCircle);
+        identity.addView(avatar,new LinearLayout.LayoutParams(dp(78),dp(78)));
+        LinearLayout details=vertical();details.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams idp=new LinearLayout.LayoutParams(0,-2,1);
+        idp.leftMargin=dp(16);identity.addView(details,idp);
+        TextView display=text(name,21,white());display.setTypeface(null,1);
+        display.setSingleLine(true);display.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        details.addView(display);
         String username=contact.optString("username","");
-        if(!username.isEmpty()){TextView user=text("@"+username,14,mutedColor());user.setGravity(Gravity.CENTER);header.addView(user);}
-        String status=contact.optBoolean("online",false)?"в сети":"был(а) недавно";
-        TextView state=text(status,13,mutedColor());state.setGravity(Gravity.CENTER);state.setPadding(0,dp(4),0,dp(8));header.addView(state);
+        if(!username.isEmpty()){
+            TextView user=text("@"+username,14,mutedColor());
+            user.setPadding(0,dp(2),0,0);details.addView(user);
+        }
+        String status=self?"Мой профиль":contact.optBoolean("online",false)?"В сети":"Был(а) недавно";
+        TextView state=text(status,13,self?accentColor():mutedColor());
+        state.setPadding(0,dp(5),0,0);details.addView(state);
+        card.addView(identity);
+
         String bio=contact.optString("bio","");
-        if(!bio.isEmpty()){TextView about=text(bio,14,white());about.setPadding(dp(8),dp(12),dp(8),dp(10));header.addView(about);}
-        LinearLayout actions=horizontal();actions.setGravity(Gravity.CENTER);
-        String[] labels={"Чат","Звонок","Видео"};
-        for(int i=0;i<labels.length;i++){int which=i;TextView b=button(labels[i]);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(52),1);p.setMargins(dp(2),0,dp(2),0);actions.addView(b,p);
-            b.setOnClickListener(v->{if(which==0)finish();else{Intent result=new Intent();result.putExtra("contact_call_kind",which==1?"audio":"video");setResult(RESULT_OK,result);finish();}});}
-        header.addView(actions);
-        LinearLayout opts=horizontal();opts.setPadding(0,dp(12),0,0);
-        TextView share=button("Поделиться");opts.addView(share,new LinearLayout.LayoutParams(0,dp(49),1));share.setOnClickListener(v->shareContact());
-        TextView block=button(contact.optBoolean("blocked_by_me",false)?"Разблокировать":"Заблокировать");
-        LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(49),1);bp.leftMargin=dp(9);opts.addView(block,bp);
-        block.setOnClickListener(v->confirmBlock());
-        header.addView(opts);
-        body.addView(header);
+        if(!bio.isEmpty()){
+            TextView about=text(bio,14,white());
+            about.setPadding(dp(2),dp(17),dp(2),dp(11));card.addView(about);
+        }
+        if(!self){
+            LinearLayout actions=horizontal();actions.setGravity(Gravity.CENTER);
+            actions.setPadding(0,dp(19),0,0);
+            String[] labels={"Чат","Аудио","Видео"};
+            for(int i=0;i<labels.length;i++){
+                final int which=i;
+                TextView action=button(labels[i]);action.setTextSize(14);
+                action.setBackground(rounded(which==0?Color.rgb(15,135,117):Color.rgb(26,51,70),13));
+                action.setContentDescription(which==0?"Вернуться в чат":which==1?"Начать голосовой звонок":"Начать видеозвонок");
+                LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(47),1);
+                p.setMargins(dp(2),0,dp(2),0);
+                actions.addView(action,p);
+                action.setOnClickListener(v->{
+                    if(which==0)finish();
+                    else{
+                        Intent result=new Intent();
+                        result.putExtra("contact_call_kind",which==1?"audio":"video");
+                        setResult(RESULT_OK,result);finish();
+                    }
+                });
+            }
+            card.addView(actions);
+        }
+        LinearLayout opts=horizontal();opts.setPadding(0,dp(10),0,0);
+        TextView share=button("Поделиться");
+        share.setTextSize(13);share.setBackground(rounded(Color.rgb(25,46,65),12));
+        opts.addView(share,new LinearLayout.LayoutParams(0,dp(43),1));
+        share.setOnClickListener(v->shareContact());
+        if(!self){
+            TextView block=button(contact.optBoolean("blocked_by_me",false)?"Разблокировать":"Заблокировать");
+            block.setTextSize(13);block.setBackground(rounded(Color.rgb(25,46,65),12));
+            LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(43),1);
+            bp.leftMargin=dp(9);opts.addView(block,bp);
+            block.setOnClickListener(v->confirmBlock());
+        }
+        card.addView(opts);
+        body.addView(card);
     }
     private void renderStoryGrid(LinearLayout body){
         android.widget.GridLayout gallery=new android.widget.GridLayout(this);
