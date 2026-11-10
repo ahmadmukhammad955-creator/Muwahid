@@ -14,13 +14,18 @@ index c513ec6..cdd378f 100644
          buildConfigField 'String', 'PUBLIC_KEY', '"sb_publishable_Mtsx-WuCfSPIyxjOlo-9dw_x6Xxbe6p"'
          buildConfigField 'String', 'FCM_APP_ID', '"' + fcmAppId + '"'
 diff --git a/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java b/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java
-index f54619f..e7a3904 100644
 --- a/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java
 +++ b/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java
-@@ -150,6 +150,58 @@ public class SmokeInstrumentation extends Instrumentation {
+@@ -150,6 +150,77 @@
          }
      }
- 
+
++    private byte[] encodedMedia(CryptoBox.EncryptedMedia media) throws java.io.IOException {
++        java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
++        media.writeTo(output);
++        return output.toByteArray();
++    }
++
 +    private void checkPrivateCommunication() throws Exception {
 +        CryptoBox crypto = new CryptoBox(getTargetContext());
 +        String run = java.util.UUID.randomUUID().toString();
@@ -38,10 +43,23 @@ index f54619f..e7a3904 100644
 +            if (!"text".equals(crypto.decryptText(bob, run, a, crypto.encryptText(alice, run, b, "text")))) {
 +                throw new AssertionError("Verified text round trip failed");
 +            }
-+            byte[] file = {1, 2, 3};
-+            if (!java.util.Arrays.equals(file,
-+                    crypto.decryptBytes(bob, run, a, crypto.encryptBytes(alice, run, b, file)))) {
-+                throw new AssertionError("Verified attachment round trip failed");
++            // Capture the bytes written by the same type used by the Storage upload.
++            for (String mime : new String[]{"image/jpeg", "video/mp4", "audio/mp4"}) {
++                byte[] file = ("private test data for " + mime).getBytes(java.nio.charset.StandardCharsets.UTF_8);
++                byte[] payload = encodedMedia(crypto.encryptBytes(alice, run, b, file));
++                if (payload.length != file.length + 32 ||
++                        !java.util.Arrays.equals(file, crypto.decryptBytes(bob, run, a, payload))) {
++                    throw new AssertionError("Verified attachment round trip failed for " + mime);
++                }
++                if (new String(payload, java.nio.charset.StandardCharsets.ISO_8859_1)
++                        .contains(new String(file, java.nio.charset.StandardCharsets.UTF_8))) {
++                    throw new AssertionError("Raw attachment was written to the upload");
++                }
++                payload[payload.length - 1] ^= 1;
++                try {
++                    crypto.decryptBytes(bob, run, a, payload);
++                    throw new AssertionError("Tampered attachment was accepted");
++                } catch (javax.crypto.AEADBadTagException expected) {}
 +            }
 +            String offer = crypto.encryptCallSignal(alice, run, b, "offer:video", "test SDP");
 +            if (offer.contains("test SDP") ||
@@ -76,10 +94,10 @@ index f54619f..e7a3904 100644
      @Override public void onStart() {
          Bundle result = new Bundle();
          try {
-@@ -159,10 +211,11 @@ public class SmokeInstrumentation extends Instrumentation {
+@@ -159,10 +230,11 @@
              activity = launch();
              waitForIdleSync();
- 
+
 -            if (!"0.13.37".equals(BuildConfig.VERSION_NAME)) {
 +            if (!"0.13.38".equals(BuildConfig.VERSION_NAME)) {
                  throw new AssertionError("Wrong version " + BuildConfig.VERSION_NAME);
@@ -88,8 +106,8 @@ index f54619f..e7a3904 100644
 +            checkPrivateCommunication();
              capture("welcome.png");
              checkPhoneEntry();
- 
-@@ -228,6 +281,8 @@ public class SmokeInstrumentation extends Instrumentation {
+
+@@ -228,11 +300,13 @@
              capture("sticker_settings.png");
              java.util.HashSet<Integer> hashes=new java.util.HashSet<>();
              CryptoBox cb=new CryptoBox(getTargetContext());String alice="sticker-test-alice",bob="sticker-test-bob";String ak=cb.publicKey(alice),bk=cb.publicKey(bob);
@@ -98,7 +116,13 @@ index f54619f..e7a3904 100644
              for(int id=0;id<12;id++){
                  byte[] png=StickerCatalog.png(id);Bitmap decoded=android.graphics.BitmapFactory.decodeByteArray(png,0,png.length);
                  if(decoded==null||decoded.getWidth()!=384||android.graphics.Color.alpha(decoded.getPixel(0,0))!=0)throw new AssertionError("Invalid transparent sticker "+id);
-@@ -323,7 +378,7 @@ public class SmokeInstrumentation extends Instrumentation {
+                 decoded.recycle();hashes.add(java.util.Arrays.hashCode(png));
+-                byte[] cipher=cb.encryptBytes(alice,"sticker-test-chat",bk,png);
++                byte[] cipher=encodedMedia(cb.encryptBytes(alice,"sticker-test-chat",bk,png));
+                 if(!java.util.Arrays.equals(png,cb.decryptBytes(bob,"sticker-test-chat",ak,cipher)))throw new AssertionError("Sticker encryption roundtrip failed");
+             }
+             if(hashes.size()!=12)throw new AssertionError("Duplicate sticker artwork");
+@@ -323,7 +397,7 @@
                  checkedOnMain(()->locked.finish());waitForIdleSync();
              }
              getTargetContext().getSharedPreferences("muwahid",0).edit().putBoolean("app_lock",false).commit();
@@ -108,10 +132,9 @@ index f54619f..e7a3904 100644
          } catch (Throwable e) {
              result.putString("stream", "MW_SMOKE_FAILED: " + e.getClass().getName() + ": " + String.valueOf(e.getMessage()));
 diff --git a/app/src/main/java/com/muwahid/app/Api.java b/app/src/main/java/com/muwahid/app/Api.java
-index 2f5d29b..1524527 100644
 --- a/app/src/main/java/com/muwahid/app/Api.java
 +++ b/app/src/main/java/com/muwahid/app/Api.java
-@@ -29,23 +29,34 @@ final class Api {
+@@ -29,23 +29,34 @@
          JSONObject external=settings.optJSONObject("external");
          return external!=null && external.optBoolean("google",false);
      }
@@ -124,6 +147,14 @@ index 2f5d29b..1524527 100644
 -        for(String part:fragment.split("&")){
 -            int p=part.indexOf('=');if(p<0)continue;
 -            values.put(URLDecoder.decode(part.substring(0,p),"UTF-8"),URLDecoder.decode(part.substring(p+1),"UTF-8"));
+-        }
+-        String err=values.get("error_description");if(err==null)err=values.get("error");
+-        if(err!=null&&!err.isEmpty())throw new Exception("Вход через Google не выполнен: "+err);
+-        String access=values.get("access_token"),refresh=values.get("refresh_token");
+-        if(access==null||access.isEmpty()||refresh==null||refresh.isEmpty())throw new Exception("Не удалось получить сессию Google.");
+-        long expires=3600;try{expires=Long.parseLong(values.get("expires_in"));}catch(Exception ignored){}
+-        JSONObject result=new JSONObject().put("access_token",access).put("refresh_token",refresh).put("expires_in",expires).put("token_type","bearer");
+-        acceptSession(result);
 +    String googleOAuthUrl(SecureStore pendingOAuth) throws Exception {
 +        byte[] random = new byte[32];
 +        new java.security.SecureRandom().nextBytes(random);
@@ -147,14 +178,7 @@ index 2f5d29b..1524527 100644
 +        if(flow.getLong("expires_at")<=System.currentTimeMillis()){
 +            pendingOAuth.clear();
 +            throw new Exception("Срок входа через Google истёк. Начните вход заново.");
-         }
--        String err=values.get("error_description");if(err==null)err=values.get("error");
--        if(err!=null&&!err.isEmpty())throw new Exception("Вход через Google не выполнен: "+err);
--        String access=values.get("access_token"),refresh=values.get("refresh_token");
--        if(access==null||access.isEmpty()||refresh==null||refresh.isEmpty())throw new Exception("Не удалось получить сессию Google.");
--        long expires=3600;try{expires=Long.parseLong(values.get("expires_in"));}catch(Exception ignored){}
--        JSONObject result=new JSONObject().put("access_token",access).put("refresh_token",refresh).put("expires_in",expires).put("token_type","bearer");
--        acceptSession(result);
++        }
 +        JSONObject exchange = new JSONObject().put("auth_code",code)
 +                .put("code_verifier",flow.getString("verifier"));
 +        acceptSession(object(request("/auth/v1/token?grant_type=pkce",exchange,"")));
@@ -162,7 +186,7 @@ index 2f5d29b..1524527 100644
      }
      private JSONObject object(String text) throws Exception { return new JSONObject(text); }
      private String request(String path, JSONObject data, String token) throws Exception { return request(path,data,token,"POST"); }
-@@ -74,13 +85,13 @@ final class Api {
+@@ -74,13 +85,13 @@
                      else if (code.equals("phone_provider_disabled")) msg = "Вход по телефону ещё не включён на сервере Muwahid.";
                      else if (code.equals("sms_send_failed")) msg = "Не удалось отправить SMS-код. Проверьте настройки SMS на сервере.";
                      else if (code.equals("otp_expired")) msg = "Код истёк или введён неверно. Запросите новый код.";
@@ -178,7 +202,7 @@ index 2f5d29b..1524527 100644
                      else if (detail.equals("MW:MFA_REQUIRED")) throw new MfaRequiredException();
                      else if (detail.startsWith("MW:")) msg = detail.substring(3);
                  } catch (JSONException ignored) {}
-@@ -91,9 +102,9 @@ final class Api {
+@@ -91,9 +102,9 @@
              return text.toString();
          } finally { c.disconnect(); }
      }
@@ -190,7 +214,7 @@ index 2f5d29b..1524527 100644
          if (result.optString("access_token").isEmpty()) return false;
          acceptSession(result); return true;
      }
-@@ -101,12 +112,17 @@ final class Api {
+@@ -101,12 +112,17 @@
          acceptSession(object(request("/auth/v1/token?grant_type=password", new JSONObject().put("email", email).put("password", password), "")));
      }
      synchronized void sendPhoneOtp(String phone) throws Exception {
@@ -200,7 +224,7 @@ index 2f5d29b..1524527 100644
 +        JSONObject body=new JSONObject().put("phone",phone).put("create_user",false);
          request("/auth/v1/otp",body,"");
      }
- 
+
 +    boolean familyGateEnabled() throws Exception {
 +        try {
 +            return Boolean.TRUE.equals(publicRpc("mw_family_signup_enabled",new JSONObject()));
@@ -211,7 +235,24 @@ index 2f5d29b..1524527 100644
      Object publicRpc(String function, JSONObject args) throws Exception {
          String result=request("/rest/v1/rpc/"+function,args,"");
          return new JSONTokener(result).nextValue();
-@@ -312,5 +328,8 @@ final class Api {
+@@ -209,14 +225,14 @@
+         if(session.optLong("expires_at")<System.currentTimeMillis()/1000+60) refresh();
+     }
+
+-    synchronized void uploadMedia(String objectPath, byte[] data) throws Exception {
++    synchronized void uploadMedia(String objectPath, CryptoBox.EncryptedMedia data) throws Exception {
+         ensureFresh();
+         String encoded=encodeObjectPath(objectPath);
+         HttpsURLConnection c=(HttpsURLConnection)new URL(BuildConfig.SERVER_URL+"/storage/v1/object/mw-media/"+encoded).openConnection();
+         c.setConnectTimeout(20000);c.setReadTimeout(30000);c.setInstanceFollowRedirects(false);c.setRequestMethod("POST");
+         c.setRequestProperty("apikey",BuildConfig.PUBLIC_KEY);c.setRequestProperty("Authorization","Bearer "+session.optString("access_token"));
+         c.setRequestProperty("Content-Type","application/octet-stream");c.setRequestProperty("x-upsert","false");c.setDoOutput(true);
+-        try{try(OutputStream out=c.getOutputStream()){out.write(data);}int status=c.getResponseCode();if(status>=300){String msg=readError(c);if(status==401){refresh();uploadMedia(objectPath,data);return;}if(status==404)throw new Exception("Хранилище медиа на сервере ещё не создано. Примените серверное обновление 0.7.");throw new Exception("Не удалось загрузить файл ("+status+")"+(msg.isEmpty()?"":". "+msg));}}finally{c.disconnect();}
++        try{try(OutputStream out=c.getOutputStream()){data.writeTo(out);}int status=c.getResponseCode();if(status>=300){String msg=readError(c);if(status==401){refresh();uploadMedia(objectPath,data);return;}if(status==404)throw new Exception("Хранилище медиа на сервере ещё не создано. Примените серверное обновление 0.7.");throw new Exception("Не удалось загрузить файл ("+status+")"+(msg.isEmpty()?"":". "+msg));}}finally{c.disconnect();}
+     }
+
+     synchronized byte[] downloadMedia(String objectPath) throws Exception {
+@@ -312,5 +328,8 @@
      }
      synchronized void clear() { session = new JSONObject(); store.clear(); }
      static class StaleRefreshTokenException extends Exception { StaleRefreshTokenException(){super("Refresh token already used");} }
@@ -402,10 +443,18 @@ index 1f8f2c7..6e6d2a2 100644
  "window.hangup=async function(status='ended'){if(ended)return;ended=true;MuwahidNative.ringback(false);clearTimeout(pollTimer);clearTimeout(timerTick);try{if(callId)await rpc('mw_call_end',{p_call:callId,p_status:status});}catch(e){}if(local)local.getTracks().forEach(t=>t.stop());if(pc)pc.close();MuwahidNative.close();};\n"+
  "$('end').onclick=()=>hangup();$('end2').onclick=()=>hangup();$('more2').onclick=()=>MuwahidNative.action('more');$('message').onclick=()=>MuwahidNative.action('chat');$('decline').onclick=()=>hangup('rejected');$('answer').onclick=acceptIncoming;\n"+
 diff --git a/app/src/main/java/com/muwahid/app/CryptoBox.java b/app/src/main/java/com/muwahid/app/CryptoBox.java
-index bcdd3f1..3aaff0f 100644
 --- a/app/src/main/java/com/muwahid/app/CryptoBox.java
 +++ b/app/src/main/java/com/muwahid/app/CryptoBox.java
-@@ -15,6 +15,8 @@ import java.security.PrivateKey;
+@@ -6,6 +6,8 @@
+ import android.security.keystore.KeyProperties;
+ import android.util.Base64;
+
++import java.io.IOException;
++import java.io.OutputStream;
+ import java.security.KeyFactory;
+ import java.security.KeyPair;
+ import java.security.KeyPairGenerator;
+@@ -15,6 +17,8 @@
  import java.security.PublicKey;
  import java.security.SecureRandom;
  import java.security.spec.ECGenParameterSpec;
@@ -413,11 +462,11 @@ index bcdd3f1..3aaff0f 100644
 +import java.util.Locale;
  import java.security.spec.PKCS8EncodedKeySpec;
  import java.security.spec.X509EncodedKeySpec;
- 
-@@ -50,14 +52,71 @@ final class CryptoBox {
+
+@@ -50,14 +54,71 @@
          return prefs.getString(key(userId, "pub"), "");
      }
- 
+
 +    synchronized String safetyCode(String userId, String peerPublicKey) throws Exception {
 +        String own = publicKey(userId);
 +        byte[] peer = Base64.decode(peerPublicKey, Base64.NO_WRAP);
@@ -487,7 +536,7 @@ index bcdd3f1..3aaff0f 100644
          byte[] encrypted = cipher.doFinal(plaintext.getBytes("UTF-8"));
          return FORMAT + Base64.encodeToString(iv, Base64.NO_WRAP) + ":" + Base64.encodeToString(encrypted, Base64.NO_WRAP);
      }
-@@ -65,6 +124,11 @@ final class CryptoBox {
+@@ -65,6 +126,11 @@
      synchronized String decryptText(String userId, String chatId, String peerPublicKey, String payload) throws Exception {
          if (payload == null) return "";
          if (!payload.startsWith(FORMAT)) return payload; // Legacy plaintext remains readable.
@@ -499,7 +548,7 @@ index bcdd3f1..3aaff0f 100644
          String[] parts = payload.split(":", 3);
          if (parts.length != 3) throw new Exception("Повреждённое зашифрованное сообщение");
          byte[] iv = Base64.decode(parts[1], Base64.NO_WRAP);
-@@ -72,12 +136,13 @@ final class CryptoBox {
+@@ -72,12 +138,26 @@
          if (iv.length != 12 || encrypted.length < 16) throw new Exception("Повреждённое зашифрованное сообщение");
          Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
          cipher.init(Cipher.DECRYPT_MODE, chatKey(userId, chatId, peerPublicKey), new GCMParameterSpec(128, iv));
@@ -507,38 +556,56 @@ index bcdd3f1..3aaff0f 100644
 +        cipher.updateAAD(aad(chatId, scope));
          return new String(cipher.doFinal(encrypted), "UTF-8");
      }
- 
+
++    /** Only successful authenticated encryption can construct a private upload. */
++    static final class EncryptedMedia {
++        private final byte[] payload;
++
++        private EncryptedMedia(byte[] payload) {
++            this.payload = payload;
++        }
++
++        void writeTo(OutputStream output) throws IOException {
++            output.write(payload);
++        }
++    }
++
      /** Binary media format: ASCII MWM1 + 12-byte IV + AES-GCM ciphertext/tag. */
-     synchronized byte[] encryptBytes(String userId, String chatId, String peerPublicKey, byte[] plaintext) throws Exception {
+-    synchronized byte[] encryptBytes(String userId, String chatId, String peerPublicKey, byte[] plaintext) throws Exception {
++    synchronized EncryptedMedia encryptBytes(String userId, String chatId, String peerPublicKey, byte[] plaintext) throws Exception {
 +        requireVerifiedPeer(userId, chatId, peerPublicKey);
          if (plaintext == null || plaintext.length == 0) throw new Exception("Пустой файл");
          byte[] iv = new byte[12]; random.nextBytes(iv);
          Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-@@ -92,6 +157,7 @@ final class CryptoBox {
+@@ -88,10 +168,11 @@
+         out[0]='M'; out[1]='W'; out[2]='M'; out[3]='1';
+         System.arraycopy(iv,0,out,4,iv.length);
+         System.arraycopy(encrypted,0,out,16,encrypted.length);
+-        return out;
++        return new EncryptedMedia(out);
      }
- 
+
      synchronized byte[] decryptBytes(String userId, String chatId, String peerPublicKey, byte[] payload) throws Exception {
 +        requireVerifiedPeer(userId, chatId, peerPublicKey);
          if (payload == null || payload.length < 32 || payload[0]!='M' || payload[1]!='W' || payload[2]!='M' || payload[3]!='1')
              throw new Exception("Повреждённый зашифрованный файл");
          byte[] iv = new byte[12]; System.arraycopy(payload,4,iv,0,12);
-@@ -102,8 +168,9 @@ final class CryptoBox {
+@@ -102,8 +183,9 @@
          return cipher.doFinal(encrypted);
      }
- 
+
 -    private byte[] aad(String chatId) throws Exception {
 -        return ("Muwahid:E2EE:v1:" + chatId).getBytes("UTF-8");
 +    private byte[] aad(String chatId, String scope) {
 +        String aad = "Muwahid:E2EE:v1:" + chatId;
 +        return (scope.isEmpty() ? aad : aad + ":" + scope).getBytes(StandardCharsets.UTF_8);
      }
- 
+
      private SecretKey chatKey(String userId, String chatId, String peerPublicKey) throws Exception {
 diff --git a/app/src/main/java/com/muwahid/app/MainActivity.java b/app/src/main/java/com/muwahid/app/MainActivity.java
-index dd7c29b..9fe7457 100644
 --- a/app/src/main/java/com/muwahid/app/MainActivity.java
 +++ b/app/src/main/java/com/muwahid/app/MainActivity.java
-@@ -98,6 +98,7 @@ public class MainActivity extends Activity implements SensorEventListener {
+@@ -98,6 +98,7 @@
      private boolean phoneRegisterMode;
      private PhoneEntryView phoneEntry;
      private String pendingText="", pendingNonce="", peerE2eeKey="";
@@ -546,7 +613,7 @@ index dd7c29b..9fe7457 100644
      private volatile String pendingPayload="", e2eePublishedFor="";
      private volatile boolean e2eePublishing;
      private boolean e2eeBackendReady, sendAfterE2eeReady;
-@@ -158,8 +159,9 @@ public class MainActivity extends Activity implements SensorEventListener {
+@@ -158,8 +159,9 @@
          Uri data=intent==null?null:intent.getData();
          if(data==null||!"muwahid".equalsIgnoreCase(data.getScheme())||!"auth-callback".equalsIgnoreCase(data.getHost()))return false;
          begin("oauth");toolbar("Вход через Google",false,null,null);scrollContent();note(content,"Завершаем безопасный вход через Google…");
@@ -558,7 +625,7 @@ index dd7c29b..9fe7457 100644
          return true;
      }
      private void maybeStartNotifications(){
-@@ -242,7 +244,7 @@ public class MainActivity extends Activity implements SensorEventListener {
+@@ -242,7 +244,7 @@
      private void gap(LinearLayout l,int h){l.addView(new Space(this),new LinearLayout.LayoutParams(1,dp(h)));}
      private void note(LinearLayout l,String s){TextView t=label(s,13,muted);t.setLineSpacing(dp(3),1);l.addView(t);}
      private void notice(String s){new AlertDialog.Builder(this).setMessage(s).setPositiveButton("Понятно",null).show();}
@@ -567,20 +634,20 @@ index dd7c29b..9fe7457 100644
      private void refreshRemoteConfig(boolean force){
          if(remote==null||api==null||!api.configured())return;
          long now=System.currentTimeMillis();
-@@ -551,10 +553,10 @@ public class MainActivity extends Activity implements SensorEventListener {
+@@ -551,10 +553,10 @@
      private void setCloudStickerFavoriteById(String id,boolean favorite){if(id==null||id.isEmpty())return;JSONObject asset=new JSONObject();try{asset.put("id",id);}catch(Exception ignored){}setCloudStickerFavorite(asset,favorite);}
      private void setCloudStickerFavorite(JSONObject asset,boolean favorite){String id=asset.optString("id","");if(id.isEmpty())return;worker.execute(()->{try{api.rpc("mw_sticker_set_favorite",new JSONObject().put("p_sticker",id).put("p_favorite",favorite));handler.post(()->{stickerCloudLoadedAt=0;Toast.makeText(this,favorite?"Стикер добавлен в избранное":"Стикер убран из избранного",Toast.LENGTH_SHORT).show();});}catch(Exception e){handler.post(()->error(e));}});}
      private void sendCloudSticker(JSONObject asset){
 -        if(sending||voiceRecording||notesMode||!"chat".equals(screen))return;if(!api.signedIn()||!e2eeBackendReady||peerE2eeKey.isEmpty()){notice("Для отправки стикера нужен защищённый чат с собеседником.");return;}final String id=chatId,peer=peerE2eeKey,uid=api.uid();final int stamp=generation;sending=true;setComposeEnabled(false);sendButton.setEnabled(false);connection.setText("Отправляем стикер…");worker.execute(()->{try{byte[] raw=api.downloadSticker(asset.getString("storage_path"));byte[] encrypted=crypto.encryptBytes(uid,id,peer,raw);String path=id+"/"+UUID.randomUUID()+".bin";api.uploadMedia(path,encrypted);String assetId=asset.optString("id","");String mime=asset.optString("mime_type","image/webp");String name=asset.optString("original_name","sticker");JSONObject meta=new JSONObject().put("mw_kind","media").put("media_type","image").put("sticker",true).put("sticker_asset_id",assetId).put("sticker_storage_path",asset.optString("storage_path","")).put("sticker_source_kind",asset.optString("source_kind","supabase")).put("name",name).put("mime",mime).put("path",path).put("size",raw.length);String payload=crypto.encryptText(uid,id,peer,meta.toString());JSONObject sent=(JSONObject)api.rpc("mw_send",new JSONObject().put("p_chat",id).put("p_body",payload).put("p_nonce",UUID.randomUUID().toString()));if(!assetId.isEmpty())try{api.rpc("mw_sticker_mark_recent",new JSONObject().put("p_sticker",assetId));}catch(Exception ignored){}handler.post(()->{stickerCloudLoadedAt=0;sending=false;if(stamp!=generation)return;setComposeEnabled(true);sendButton.setEnabled(true);connection.setText(chatSecurityStatus());history.put(sent.optLong("id"),sent);drawMessages(true);bottomScroll();updateComposeAction();});}catch(Exception e){handler.post(()->{sending=false;if(stamp!=generation)return;setComposeEnabled(true);sendButton.setEnabled(true);connection.setText(chatSecurityStatus());updateComposeAction();error(e);});}});
-+        if(sending||voiceRecording||notesMode||!"chat".equals(screen))return;if(!api.signedIn()||!peerKeyVerified){notice("Для отправки стикера нужен защищённый чат с собеседником.");return;}final String id=chatId,peer=peerE2eeKey,uid=api.uid();final int stamp=generation;sending=true;setComposeEnabled(false);sendButton.setEnabled(false);connection.setText("Отправляем стикер…");worker.execute(()->{try{byte[] raw=api.downloadSticker(asset.getString("storage_path"));byte[] encrypted=crypto.encryptBytes(uid,id,peer,raw);String path=id+"/"+UUID.randomUUID()+".bin";api.uploadMedia(path,encrypted);String assetId=asset.optString("id","");String mime=asset.optString("mime_type","image/webp");String name=asset.optString("original_name","sticker");JSONObject meta=new JSONObject().put("mw_kind","media").put("media_type","image").put("sticker",true).put("sticker_asset_id",assetId).put("sticker_storage_path",asset.optString("storage_path","")).put("sticker_source_kind",asset.optString("source_kind","supabase")).put("name",name).put("mime",mime).put("path",path).put("size",raw.length);String payload=crypto.encryptText(uid,id,peer,meta.toString());JSONObject sent=(JSONObject)api.rpc("mw_send",new JSONObject().put("p_chat",id).put("p_body",payload).put("p_nonce",UUID.randomUUID().toString()));if(!assetId.isEmpty())try{api.rpc("mw_sticker_mark_recent",new JSONObject().put("p_sticker",assetId));}catch(Exception ignored){}handler.post(()->{stickerCloudLoadedAt=0;sending=false;if(stamp!=generation)return;setComposeEnabled(true);sendButton.setEnabled(true);connection.setText(chatSecurityStatus());history.put(sent.optLong("id"),sent);drawMessages(true);bottomScroll();updateComposeAction();});}catch(Exception e){handler.post(()->{sending=false;if(stamp!=generation)return;setComposeEnabled(true);sendButton.setEnabled(true);connection.setText(chatSecurityStatus());updateComposeAction();error(e);});}});
++        if(sending||voiceRecording||notesMode||!"chat".equals(screen))return;if(!api.signedIn()||!peerKeyVerified){notice("Для отправки стикера нужен защищённый чат с собеседником.");return;}final String id=chatId,peer=peerE2eeKey,uid=api.uid();final int stamp=generation;sending=true;setComposeEnabled(false);sendButton.setEnabled(false);connection.setText("Отправляем стикер…");worker.execute(()->{try{byte[] raw=api.downloadSticker(asset.getString("storage_path"));CryptoBox.EncryptedMedia encrypted=crypto.encryptBytes(uid,id,peer,raw);String path=id+"/"+UUID.randomUUID()+".bin";String assetId=asset.optString("id","");String mime=asset.optString("mime_type","image/webp");String name=asset.optString("original_name","sticker");JSONObject meta=new JSONObject().put("mw_kind","media").put("media_type","image").put("sticker",true).put("sticker_asset_id",assetId).put("sticker_storage_path",asset.optString("storage_path","")).put("sticker_source_kind",asset.optString("source_kind","supabase")).put("name",name).put("mime",mime).put("path",path).put("size",raw.length);String payload=crypto.encryptText(uid,id,peer,meta.toString());api.uploadMedia(path,encrypted);JSONObject sent=(JSONObject)api.rpc("mw_send",new JSONObject().put("p_chat",id).put("p_body",payload).put("p_nonce",UUID.randomUUID().toString()));if(!assetId.isEmpty())try{api.rpc("mw_sticker_mark_recent",new JSONObject().put("p_sticker",assetId));}catch(Exception ignored){}handler.post(()->{stickerCloudLoadedAt=0;sending=false;if(stamp!=generation)return;setComposeEnabled(true);sendButton.setEnabled(true);connection.setText(chatSecurityStatus());history.put(sent.optLong("id"),sent);drawMessages(true);bottomScroll();updateComposeAction();});}catch(Exception e){handler.post(()->{sending=false;if(stamp!=generation)return;setComposeEnabled(true);sendButton.setEnabled(true);connection.setText(chatSecurityStatus());updateComposeAction();error(e);});}});
      }
      private void sendSticker(int stickerId){
 -        if(sending||voiceRecording||notesMode||!"chat".equals(screen))return;if(!api.signedIn()||!e2eeBackendReady||peerE2eeKey.isEmpty()){notice("Для отправки стикера нужен защищённый чат с собеседником.");return;}final String id=chatId,peer=peerE2eeKey,uid=api.uid();final int stamp=generation;sending=true;setComposeEnabled(false);sendButton.setEnabled(false);connection.setText("Отправляем стикер…");worker.execute(()->{try{byte[] raw=StickerCatalog.png(stickerId);byte[] encrypted=crypto.encryptBytes(uid,id,peer,raw);String path=id+"/"+UUID.randomUUID()+".bin";api.uploadMedia(path,encrypted);JSONObject meta=new JSONObject().put("mw_kind","media").put("media_type","image").put("sticker",true).put("sticker_id",stickerId).put("sticker_animation","muwahid-vector-v1").put("name",StickerCatalog.name(stickerId)+".png").put("mime","image/png").put("path",path).put("size",raw.length);String payload=crypto.encryptText(uid,id,peer,meta.toString());JSONObject sent=(JSONObject)api.rpc("mw_send",new JSONObject().put("p_chat",id).put("p_body",payload).put("p_nonce",UUID.randomUUID().toString()));LinkedHashSet<String> recent=new LinkedHashSet<>();recent.add(String.valueOf(stickerId));for(String value:prefs.getString("recent_stickers","").split(","))if(!value.isEmpty()&&recent.size()<12)recent.add(value);prefs.edit().putString("recent_stickers",TextUtils.join(",",recent)).apply();handler.post(()->{sending=false;if(stamp!=generation)return;setComposeEnabled(true);sendButton.setEnabled(true);connection.setText(chatSecurityStatus());history.put(sent.optLong("id"),sent);drawMessages(true);bottomScroll();updateComposeAction();});}catch(Exception e){handler.post(()->{sending=false;if(stamp!=generation)return;setComposeEnabled(true);sendButton.setEnabled(true);connection.setText(chatSecurityStatus());updateComposeAction();error(e);});}});
-+        if(sending||voiceRecording||notesMode||!"chat".equals(screen))return;if(!api.signedIn()||!peerKeyVerified){notice("Для отправки стикера нужен защищённый чат с собеседником.");return;}final String id=chatId,peer=peerE2eeKey,uid=api.uid();final int stamp=generation;sending=true;setComposeEnabled(false);sendButton.setEnabled(false);connection.setText("Отправляем стикер…");worker.execute(()->{try{byte[] raw=StickerCatalog.png(stickerId);byte[] encrypted=crypto.encryptBytes(uid,id,peer,raw);String path=id+"/"+UUID.randomUUID()+".bin";api.uploadMedia(path,encrypted);JSONObject meta=new JSONObject().put("mw_kind","media").put("media_type","image").put("sticker",true).put("sticker_id",stickerId).put("sticker_animation","muwahid-vector-v1").put("name",StickerCatalog.name(stickerId)+".png").put("mime","image/png").put("path",path).put("size",raw.length);String payload=crypto.encryptText(uid,id,peer,meta.toString());JSONObject sent=(JSONObject)api.rpc("mw_send",new JSONObject().put("p_chat",id).put("p_body",payload).put("p_nonce",UUID.randomUUID().toString()));LinkedHashSet<String> recent=new LinkedHashSet<>();recent.add(String.valueOf(stickerId));for(String value:prefs.getString("recent_stickers","").split(","))if(!value.isEmpty()&&recent.size()<12)recent.add(value);prefs.edit().putString("recent_stickers",TextUtils.join(",",recent)).apply();handler.post(()->{sending=false;if(stamp!=generation)return;setComposeEnabled(true);sendButton.setEnabled(true);connection.setText(chatSecurityStatus());history.put(sent.optLong("id"),sent);drawMessages(true);bottomScroll();updateComposeAction();});}catch(Exception e){handler.post(()->{sending=false;if(stamp!=generation)return;setComposeEnabled(true);sendButton.setEnabled(true);connection.setText(chatSecurityStatus());updateComposeAction();error(e);});}});
++        if(sending||voiceRecording||notesMode||!"chat".equals(screen))return;if(!api.signedIn()||!peerKeyVerified){notice("Для отправки стикера нужен защищённый чат с собеседником.");return;}final String id=chatId,peer=peerE2eeKey,uid=api.uid();final int stamp=generation;sending=true;setComposeEnabled(false);sendButton.setEnabled(false);connection.setText("Отправляем стикер…");worker.execute(()->{try{byte[] raw=StickerCatalog.png(stickerId);CryptoBox.EncryptedMedia encrypted=crypto.encryptBytes(uid,id,peer,raw);String path=id+"/"+UUID.randomUUID()+".bin";JSONObject meta=new JSONObject().put("mw_kind","media").put("media_type","image").put("sticker",true).put("sticker_id",stickerId).put("sticker_animation","muwahid-vector-v1").put("name",StickerCatalog.name(stickerId)+".png").put("mime","image/png").put("path",path).put("size",raw.length);String payload=crypto.encryptText(uid,id,peer,meta.toString());api.uploadMedia(path,encrypted);JSONObject sent=(JSONObject)api.rpc("mw_send",new JSONObject().put("p_chat",id).put("p_body",payload).put("p_nonce",UUID.randomUUID().toString()));LinkedHashSet<String> recent=new LinkedHashSet<>();recent.add(String.valueOf(stickerId));for(String value:prefs.getString("recent_stickers","").split(","))if(!value.isEmpty()&&recent.size()<12)recent.add(value);prefs.edit().putString("recent_stickers",TextUtils.join(",",recent)).apply();handler.post(()->{sending=false;if(stamp!=generation)return;setComposeEnabled(true);sendButton.setEnabled(true);connection.setText(chatSecurityStatus());history.put(sent.optLong("id"),sent);drawMessages(true);bottomScroll();updateComposeAction();});}catch(Exception e){handler.post(()->{sending=false;if(stamp!=generation)return;setComposeEnabled(true);sendButton.setEnabled(true);connection.setText(chatSecurityStatus());updateComposeAction();error(e);});}});
      }
      private boolean handleSharedStickerIntent(Intent intent){
          if(intent==null||api==null||!api.signedIn())return false;String action=intent.getAction();if(!Intent.ACTION_SEND.equals(action)&&!Intent.ACTION_SEND_MULTIPLE.equals(action))return false;pendingSharedStickerUris.clear();try{if(Intent.ACTION_SEND_MULTIPLE.equals(action)){ArrayList<Uri> many=intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);if(many!=null)pendingSharedStickerUris.addAll(many);}else{Uri one=intent.getParcelableExtra(Intent.EXTRA_STREAM);if(one!=null)pendingSharedStickerUris.add(one);}ClipData clip=intent.getClipData();if(clip!=null)for(int i=0;i<clip.getItemCount();i++){Uri u=clip.getItemAt(i).getUri();if(u!=null&&!pendingSharedStickerUris.contains(u))pendingSharedStickerUris.add(u);}}catch(Exception ignored){}if(pendingSharedStickerUris.isEmpty())return false;showChats();new AlertDialog.Builder(this).setTitle("Добавить в Muwahid").setMessage("Сохранить "+pendingSharedStickerUris.size()+" стикер(а) в набор «Импортированные»?").setNegativeButton("Отмена",(d,w)->pendingSharedStickerUris.clear()).setPositiveButton("Добавить",(d,w)->importSharedStickers()).show();return true;
-@@ -662,11 +664,112 @@ public class MainActivity extends Activity implements SensorEventListener {
+@@ -662,11 +664,112 @@
          FrameLayout scene=new FrameLayout(this);scene.setBackgroundColor(Color.parseColor("#06101B"));
          Logo hero=new Logo(this,true);scene.addView(hero,new FrameLayout.LayoutParams(-1,-1));root.addView(scene,new LinearLayout.LayoutParams(-1,0,1));
          LinearLayout actions=vertical();actions.setPadding(dp(28),dp(6),dp(28),dp(24));actions.setBackgroundColor(bg);
@@ -694,7 +761,7 @@ index dd7c29b..9fe7457 100644
      private void showAuth(boolean register){
          phoneRegisterMode=register;begin("auth");
          if(remote!=null&&!remote.bool("auth.enabled",true)){
-@@ -701,7 +804,7 @@ public class MainActivity extends Activity implements SensorEventListener {
+@@ -701,7 +804,7 @@
          final int stamp=generation;
          worker.execute(()->{try{
              if(!api.googleProviderEnabled())throw new Exception("Google сейчас не активен на живом Auth-сервере Supabase. Проверьте Client ID, Client Secret и Save в провайдере Google.");
@@ -703,7 +770,7 @@ index dd7c29b..9fe7457 100644
              handler.post(()->{if(stamp!=generation)return;try{startActivity(new Intent(Intent.ACTION_VIEW,url));}catch(Exception e){error(e);}});
          }catch(Exception e){handler.post(()->{if(stamp==generation)error(e);});}});
      }
-@@ -1210,7 +1313,42 @@ public class MainActivity extends Activity implements SensorEventListener {
+@@ -1210,7 +1313,42 @@
          root.addView(bar,new LinearLayout.LayoutParams(-1,dp(60)));View rule=new View(this);rule.setBackgroundColor(line);root.addView(rule,new LinearLayout.LayoutParams(-1,dp(1)));
      }
      private void showChatMenu(){
@@ -745,9 +812,9 @@ index dd7c29b..9fe7457 100644
 +                    }).show();
 +        }catch(Exception e){error(e);}
      }
- 
+
      private void showChat(String id,String name){notesMode=false;openConversation(id,name);prepareE2eeChat();}
-@@ -1224,18 +1362,20 @@ public class MainActivity extends Activity implements SensorEventListener {
+@@ -1224,18 +1362,20 @@
          worker.execute(()->{try{
              String own=crypto.publicKey(uid);api.rpc("mw_e2ee_set_key",new JSONObject().put("p_public_key",own));e2eePublishedFor=uid;
              Object value=api.rpc("mw_e2ee_peer_key",new JSONObject().put("p_chat",id));final String peer=value instanceof String?(String)value:"";
@@ -765,14 +832,14 @@ index dd7c29b..9fe7457 100644
          return "Личная переписка · E2EE на сервере ещё не готово";
      }
      private void showNotes(){notesMode=true;openConversation("local-notes","Избранное");drawNotes();}
- 
+
      private void openConversation(String id,String name){
 -        begin("chat");chatId=id;chatName=name;history.clear();pendingNonce="";pendingText="";pendingPayload="";peerE2eeKey="";e2eeBackendReady=false;sendAfterE2eeReady=false;root.setBackgroundColor(darkTheme()?Color.parseColor("#061321"):Color.parseColor("#EEF4F7"));chatToolbar(name);refreshChatPresence(id);
 +        begin("chat");chatId=id;chatName=name;history.clear();pendingNonce="";pendingText="";pendingPayload="";peerE2eeKey="";peerKeyVerified=false;e2eeBackendReady=false;sendAfterE2eeReady=false;root.setBackgroundColor(darkTheme()?Color.parseColor("#061321"):Color.parseColor("#EEF4F7"));chatToolbar(name);refreshChatPresence(id);
          connection=label(notesMode?"Личные заметки · только на этом телефоне":"Загрузка сообщений…",10,Color.parseColor("#7D91A4"));connection.setPadding(dp(12),dp(3),dp(12),dp(3));connection.setVisibility(View.GONE);root.addView(connection);
          messageScroll=new ScrollView(this);messageScroll.setFillViewport(true);messageScroll.setVerticalScrollBarEnabled(false);messageScroll.setBackground(new ChatWallpaperDrawable());messages=vertical();messages.setPadding(dp(10),dp(10),dp(10),dp(10));messageScroll.addView(messages);root.addView(messageScroll,new LinearLayout.LayoutParams(-1,0,1));
- 
-@@ -1295,7 +1435,7 @@ public class MainActivity extends Activity implements SensorEventListener {
+
+@@ -1295,7 +1435,7 @@
      private String readableBody(JSONObject message){
          String body=message.optString("body");
          if(!body.startsWith("mw1:"))return body;
@@ -781,25 +848,38 @@ index dd7c29b..9fe7457 100644
          try{return crypto.decryptText(api.uid(),chatId,peerE2eeKey,body);}catch(Exception e){return "Не удалось расшифровать это сообщение";}
      }
      private void drawMessage(JSONObject m){
-@@ -1397,7 +1537,7 @@ public class MainActivity extends Activity implements SensorEventListener {
+@@ -1397,7 +1537,7 @@
          if(!api.signedIn()){notice("Войдите в аккаунт");return;}
          new AlertDialog.Builder(this).setTitle("Позвонить "+chatName).setItems(new String[]{"Аудиозвонок","Видеозвонок"},(d,w)->startCall(w==0?"audio":"video")).show();
      }
 -    private void startCall(String kind){Intent i=new Intent(this,CallActivity.class);i.putExtra("chat_id",chatId);i.putExtra("peer_name",chatName);i.putExtra("kind",kind);i.putExtra("incoming",false);startActivity(i);}
 +    private void startCall(String kind){if(!peerKeyVerified){showPeerVerification();return;}Intent i=new Intent(this,CallActivity.class);i.putExtra("chat_id",chatId);i.putExtra("peer_name",chatName);i.putExtra("kind",kind);i.putExtra("incoming",false);startActivity(i);}
- 
+
      private void addActiveCallBanner(){
          activeCallBanner=label("",14,Color.WHITE);
-@@ -1475,7 +1615,7 @@ public class MainActivity extends Activity implements SensorEventListener {
+@@ -1475,7 +1615,7 @@
      }
- 
+
      private void showAttachmentSheet(){
 -        if(!e2eeBackendReady||peerE2eeKey.isEmpty()){notice("Для защищённой отправки собеседник должен использовать актуальную версию Muwahid с E2EE.");return;}
 +        if(!peerKeyVerified){showPeerVerification();return;}
          Dialog dialog=new Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
          LinearLayout sheet=vertical();sheet.setPadding(dp(12),dp(5),dp(12),dp(12));sheet.setBackground(shape(panel,24));
          View handle=new View(this);handle.setBackground(shape(line,3));LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(dp(42),dp(4));hp.gravity=Gravity.CENTER_HORIZONTAL;hp.topMargin=dp(5);hp.bottomMargin=dp(10);sheet.addView(handle,hp);
-@@ -1585,7 +1725,7 @@ public class MainActivity extends Activity implements SensorEventListener {
+@@ -1548,10 +1688,10 @@
+     private void uploadMedia(Uri uri,String forcedType){
+         if(sending)return;final String id=chatId,peer=peerE2eeKey,uid=api.uid();final int stamp=generation;sending=true;setComposeEnabled(false);if(sendButton!=null)sendButton.setEnabled(false);connection.setText("Шифруем и загружаем файл…");
+         worker.execute(()->{try{
+-            String mime=getContentResolver().getType(uri);if(mime==null)mime="application/octet-stream";String name=fileName(uri);byte[] raw=readUri(uri,24*1024*1024);byte[] encrypted=crypto.encryptBytes(uid,id,peer,raw);String path=id+"/"+UUID.randomUUID()+".bin";api.uploadMedia(path,encrypted);
++            String mime=getContentResolver().getType(uri);if(mime==null)mime="application/octet-stream";String name=fileName(uri);byte[] raw=readUri(uri,24*1024*1024);CryptoBox.EncryptedMedia encrypted=crypto.encryptBytes(uid,id,peer,raw);String path=id+"/"+UUID.randomUUID()+".bin";
+             String type=forcedType!=null?forcedType:(mime.startsWith("image/")?"image":mime.startsWith("video/")?"video":mime.startsWith("audio/")?"audio":"file");
+             JSONObject meta=new JSONObject().put("mw_kind","media").put("media_type",type).put("name",type.equals("video_message")?"Видеосообщение.mp4":name).put("mime",mime).put("path",path).put("size",raw.length);
+-            String payload=crypto.encryptText(uid,id,peer,meta.toString());String nonce=UUID.randomUUID().toString();JSONObject sent=(JSONObject)api.rpc("mw_send",new JSONObject().put("p_chat",id).put("p_body",payload).put("p_nonce",nonce));
++            String payload=crypto.encryptText(uid,id,peer,meta.toString());api.uploadMedia(path,encrypted);String nonce=UUID.randomUUID().toString();JSONObject sent=(JSONObject)api.rpc("mw_send",new JSONObject().put("p_chat",id).put("p_body",payload).put("p_nonce",nonce));
+             handler.post(()->{sending=false;if(stamp!=generation)return;setComposeEnabled(true);if(sendButton!=null)sendButton.setEnabled(true);connection.setText(chatSecurityStatus());history.put(sent.optLong("id"),sent);drawMessages(true);bottomScroll();updateComposeAction();});
+         }catch(Exception e){handler.post(()->{sending=false;if(stamp!=generation)return;setComposeEnabled(true);if(sendButton!=null)sendButton.setEnabled(true);connection.setText(chatSecurityStatus());updateComposeAction();error(e);});}});
+     }
+@@ -1585,7 +1725,7 @@
      }
      private void startVoiceRecording(){
          if(notesMode||voiceRecording||sending)return;
@@ -808,7 +888,18 @@ index dd7c29b..9fe7457 100644
          try{
              File dir=new File(getCacheDir(),"voice");dir.mkdirs();voiceFile=new File(dir,"voice_"+UUID.randomUUID()+".m4a");
              if(prefs.getBoolean("pause_music_recording",false))requestVoiceAudioFocus();voiceRecorder=new MediaRecorder();voiceRecorder.setAudioSource(prefs.getString("microphone_source","built_in").equals("system")?MediaRecorder.AudioSource.DEFAULT:MediaRecorder.AudioSource.MIC);voiceRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);voiceRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);voiceRecorder.setAudioEncodingBitRate(64000);voiceRecorder.setAudioSamplingRate(44100);voiceRecorder.setOutputFile(voiceFile.getAbsolutePath());voiceRecorder.prepare();voiceRecorder.start();
-@@ -1640,7 +1780,7 @@ public class MainActivity extends Activity implements SensorEventListener {
+@@ -1631,16 +1771,16 @@
+     private void uploadRecordedVoice(File recorded,long duration){
+         if(sending){recorded.delete();return;}final String id=chatId,peer=peerE2eeKey,uid=api.uid();final int stamp=generation;sending=true;if(sendButton!=null)sendButton.setEnabled(false);if(attachButton!=null)attachButton.setEnabled(false);if(videoMessageButton!=null)videoMessageButton.setEnabled(false);if(emojiButton!=null)emojiButton.setEnabled(false);connection.setText("Шифруем и отправляем голосовое сообщение…");
+         worker.execute(()->{try{
+-            byte[] raw=readFile(recorded,24*1024*1024);byte[] encrypted=crypto.encryptBytes(uid,id,peer,raw);String path=id+"/"+UUID.randomUUID()+".bin";api.uploadMedia(path,encrypted);
++            byte[] raw=readFile(recorded,24*1024*1024);CryptoBox.EncryptedMedia encrypted=crypto.encryptBytes(uid,id,peer,raw);String path=id+"/"+UUID.randomUUID()+".bin";
+             JSONObject meta=new JSONObject().put("mw_kind","media").put("media_type","voice").put("name","Голосовое сообщение.m4a").put("mime","audio/mp4").put("path",path).put("size",raw.length).put("duration_ms",duration);
+-            String payload=crypto.encryptText(uid,id,peer,meta.toString());String nonce=UUID.randomUUID().toString();JSONObject sent=(JSONObject)api.rpc("mw_send",new JSONObject().put("p_chat",id).put("p_body",payload).put("p_nonce",nonce));recorded.delete();
++            String payload=crypto.encryptText(uid,id,peer,meta.toString());api.uploadMedia(path,encrypted);String nonce=UUID.randomUUID().toString();JSONObject sent=(JSONObject)api.rpc("mw_send",new JSONObject().put("p_chat",id).put("p_body",payload).put("p_nonce",nonce));recorded.delete();
+             handler.post(()->{sending=false;if(stamp!=generation)return;setComposeEnabled(true);if(sendButton!=null)sendButton.setEnabled(true);connection.setText(chatSecurityStatus());history.put(sent.optLong("id"),sent);drawMessages(true);bottomScroll();updateComposeAction();});
+         }catch(Exception e){recorded.delete();handler.post(()->{sending=false;if(stamp!=generation)return;setComposeEnabled(true);if(sendButton!=null)sendButton.setEnabled(true);connection.setText(chatSecurityStatus());updateComposeAction();error(e);});}});
+     }
      private byte[] readFile(File file,int max) throws Exception{if(file.length()>max)throw new Exception("Максимальный размер файла — 24 МБ");ByteArrayOutputStream out=new ByteArrayOutputStream();try(InputStream in=new FileInputStream(file)){byte[] b=new byte[16384];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}return out.toByteArray();}
      private String formatDuration(long ms){long total=Math.max(0,ms/1000),m=total/60,s=total%60;return String.format(Locale.getDefault(),"%d:%02d",m,s);}
      private void recordVideoMessage(){
@@ -817,7 +908,7 @@ index dd7c29b..9fe7457 100644
          if(Build.VERSION.SDK_INT>=23&&(checkSelfPermission(android.Manifest.permission.CAMERA)!=getPackageManager().PERMISSION_GRANTED||checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=getPackageManager().PERMISSION_GRANTED)){
              requestPermissions(new String[]{android.Manifest.permission.CAMERA,android.Manifest.permission.RECORD_AUDIO},REQ_VIDEO_MESSAGE_PERMISSION);return;
          }
-@@ -1668,7 +1808,7 @@ public class MainActivity extends Activity implements SensorEventListener {
+@@ -1668,7 +1808,7 @@
      private void send(){if(sending)return;String body=composer.getText().toString().trim();if(body.isEmpty())return;
          if(notesMode){try{JSONArray notes=new JSONArray(prefs.getString("notes","[]"));notes.put(new JSONObject().put("body",body).put("time",new SimpleDateFormat("dd.MM HH:mm",Locale.getDefault()).format(new Date())));if(!prefs.edit().putString("notes",notes.toString()).commit())throw new Exception("Не удалось сохранить заметку");composer.setText("");saveDraft();drawNotes();}catch(Exception e){error(e);}return;}
          if(!e2eeBackendReady){sendAfterE2eeReady=true;if(sendButton!=null)sendButton.setEnabled(false);Toast.makeText(this,"Подготавливаем защищённое соединение…",Toast.LENGTH_SHORT).show();if(!loading)prepareE2eeChat();return;}
@@ -826,7 +917,7 @@ index dd7c29b..9fe7457 100644
          if(!body.equals(pendingText)){pendingText=body;pendingNonce=UUID.randomUUID().toString();pendingPayload="";}
          final String nonce=pendingNonce,id=chatId,peer=peerE2eeKey,uid=api.uid();final int stamp=generation;sending=true;setComposeEnabled(false);sendButton.setEnabled(false);
          worker.execute(()->{try{
-@@ -1767,9 +1907,83 @@ public class MainActivity extends Activity implements SensorEventListener {
+@@ -1767,9 +1907,83 @@
          EditText code=field("Код из 6 цифр",true);code.setInputType(18);code.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6)});code.setSaveEnabled(false);
          Button verify=button("Подтвердить");content.addView(verify,new LinearLayout.LayoutParams(-1,dp(54)));verify.setOnClickListener(v->{String value=code.getText().toString().trim();if(!value.matches("[0-9]{6}")){code.setError("Нужны 6 цифр");return;}verify.setEnabled(false);final int stamp=generation;worker.execute(()->{try{api.verifyTotp(factor,value);handler.post(()->{if(stamp!=generation)return;code.setText("");showTwoFactor();notice("Второй фактор подтверждён.");});}catch(Exception ex){handler.post(()->{if(stamp!=generation)return;verify.setEnabled(true);code.setText("");error(ex);});}});});
      }
