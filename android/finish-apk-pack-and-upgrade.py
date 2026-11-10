@@ -36,7 +36,7 @@ change_once(MAIN,
 # 240 stickers can require hundreds of network requests: show visible status
 # rather than silently appearing frozen. The import runs off the UI thread.
 change_once(MAIN,
-    '.setPositiveButton("Импортировать",(d,w)->{\n               worker.execute(()->{',
+    '.setPositiveButton("Импортировать",(d,w)->{\n              worker.execute(()->{',
     '.setPositiveButton("Импортировать",(d,w)->{\n'
     '               final TextView status=new TextView(this);\n'
     '               status.setText("Читаем APK и подготавливаем стикеры…");\n'
@@ -50,16 +50,16 @@ change_once(MAIN,
     'int imported=importStickerArchiveBlocking(archive);',
     'int imported=importStickerArchiveBlocking(archive,status);')
 change_once(MAIN,
-    'handler.post(()->{\n                           stickerCloudLoadedAt=0;',
+    'handler.post(()->{\n                          stickerCloudLoadedAt=0;',
     'handler.post(()->{\n                           progress.dismiss();\n                           stickerCloudLoadedAt=0;')
 change_once(MAIN,
-    '}catch(Exception e){handler.post(()->error(e));}\n               });',
+    '}catch(Exception e){handler.post(()->error(e));}\n              });',
     '}catch(Exception e){handler.post(()->{progress.dismiss();error(e);});}\n               });')
 change_once(MAIN,
     'private int importStickerArchiveBlocking(Uri archive) throws Exception{',
     'private int importStickerArchiveBlocking(Uri archive,TextView status) throws Exception{')
 change_once(MAIN,
-    'imported++;\n                         importedBytes+=bytes.length;',
+    'imported++;\n                        importedBytes+=bytes.length;',
     'imported++;\n'
     '                         if(imported==1||imported%5==0){final int saved=imported;\n'
     '                             handler.post(()->status.setText("Сохранено "+saved+" стикеров…"));\n'
