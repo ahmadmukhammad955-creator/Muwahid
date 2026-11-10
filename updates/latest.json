@@ -1,7 +1,7 @@
 {
-  "versionCode": 75,
-  "versionName": "0.13.40",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.40/Muwahid-0.13.40.apk",
-  "sha256": "3bba1bc58690ba594cc5b3c6b2fbe5a26ab20950d9bf75d96aa5ef2d53ea2534",
-  "notes": "Удалены встроенные наборы «Кот Мува» и «Облачко». Личные стикеры можно импортировать из телефона или по HTTPS-ссылке, полученные стикеры — сохранить себе."
+  "versionCode": 76,
+  "versionName": "0.13.41",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.41/Muwahid-0.13.41.apk",
+  "sha256": "db0d6b752506d0c13fc014a2a922a6249451f4919dae13d77d57f4fbcf0d88fc",
+  "notes": "Шифрование чата LIVE, фото, видео, фонов и PDF для участников с проверенными ключами. Сохранены личные стикеры и данные при обновлении."
 }
