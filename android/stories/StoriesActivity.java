@@ -24,6 +24,10 @@ public final class StoriesActivity extends Activity {
     private Api api;
     private CryptoBox crypto;
     private JSONArray feed=new JSONArray();
+    private final android.util.LruCache<String,Bitmap> thumbnailCache=
+        new android.util.LruCache<String,Bitmap>(12*1024*1024){
+            @Override protected int sizeOf(String key,Bitmap value){return value==null?0:value.getByteCount();}
+        };
     private JSONObject contact=new JSONObject();
     private String profileChatId="",personId="",personName="";
     private FrameLayout frame,mediaLayer;
@@ -133,6 +137,8 @@ public final class StoriesActivity extends Activity {
         if(feed.length()==0){
             TextView empty=text("Пока нет доступных историй. Публикации видны только разрешённым контактам, а содержимое защищено сквозным шифрованием.",14,mutedColor());
             empty.setPadding(dp(14),dp(22),dp(14),dp(22));empty.setBackground(rounded(Color.rgb(18,33,48),18));body.addView(empty);
+        }else if(!profileChatId.isEmpty()){
+            renderStoryGrid(body);
         }else{
             for(int i=0;i<feed.length();i++){
                 final int idx=i;JSONObject story=feed.optJSONObject(i);if(story==null)continue;
@@ -181,6 +187,82 @@ public final class StoriesActivity extends Activity {
         header.addView(opts);
         body.addView(header);
     }
+    private void renderStoryGrid(LinearLayout body){
+        android.widget.GridLayout gallery=new android.widget.GridLayout(this);
+        gallery.setColumnCount(3);
+        int tile=Math.max(dp(88),(getResources().getDisplayMetrics().widthPixels-dp(52))/3);
+        int count=Math.min(feed.length(),48);
+        for(int i=0;i<count;i++){
+            final int index=i;
+            JSONObject story=feed.optJSONObject(i);if(story==null)continue;
+            FrameLayout tileView=new FrameLayout(this);
+            tileView.setBackground(rounded(Color.rgb(24,43,59),9));
+            ImageView preview=new ImageView(this);preview.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            preview.setBackground(rounded(Color.rgb(29,48,64),9));
+            tileView.addView(preview,new FrameLayout.LayoutParams(-1,-1));
+            TextView fallback=text("🔒",22,white());fallback.setGravity(Gravity.CENTER);
+            tileView.addView(fallback,new FrameLayout.LayoutParams(-1,-1));
+            String meta=("video".equals(story.optString("media_kind"))?"▶ ":"")
+                +(story.optBoolean("visible_on_profile",false)?"📌 ":"")
+                +story.optString("created_at","").substring(0,Math.min(10,story.optString("created_at","").length()));
+            TextView label=text(meta,11,white());label.setPadding(dp(6),dp(3),dp(4),dp(3));
+            label.setBackgroundColor(0x99081220);
+            FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(-1,dp(27),Gravity.BOTTOM);
+            tileView.addView(label,lp);
+            android.widget.GridLayout.LayoutParams gp=new android.widget.GridLayout.LayoutParams();
+            gp.width=tile;gp.height=tile*5/4;gp.setMargins(dp(2),dp(2),dp(2),dp(2));
+            gallery.addView(tileView,gp);
+            tileView.setOnClickListener(v->openStory(index));
+            if(i<30)loadThumbnail(story,preview,fallback,tile);
+        }
+        body.addView(gallery);
+        if(feed.length()>48){
+            TextView note=text("Показаны последние 48 публикаций",12,mutedColor());
+            note.setPadding(dp(4),dp(10),dp(4),dp(5));body.addView(note);
+        }
+    }
+    private void loadThumbnail(JSONObject story,ImageView preview,TextView fallback,int size){
+        String id=story.optString("id","");
+        Bitmap cached=thumbnailCache.get(id);
+        if(cached!=null){preview.setImageBitmap(cached);fallback.setVisibility(View.GONE);return;}
+        io.execute(()->{
+            byte[] original=null;Bitmap thumbnail=null;
+            try{
+                original=readDecryptedMedia(story);
+                if("video".equals(story.optString("media_kind"))){
+                    MediaMetadataRetriever retriever=new MediaMetadataRetriever();
+                    final byte[] video=original;
+                    try{
+                        retriever.setDataSource(new MediaDataSource(){
+                            @Override public int readAt(long at,byte[] buffer,int offset,int length){
+                                if(at<0||at>=video.length)return -1;
+                                int n=(int)Math.min(length,video.length-at);
+                                System.arraycopy(video,(int)at,buffer,offset,n);return n;
+                            }
+                            @Override public long getSize(){return video.length;}
+                            @Override public void close(){}
+                        });
+                        thumbnail=retriever.getFrameAtTime(0,MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+                    }finally{retriever.release();}
+                }else{
+                    BitmapFactory.Options sample=new BitmapFactory.Options();sample.inJustDecodeBounds=true;
+                    BitmapFactory.decodeByteArray(original,0,original.length,sample);
+                    if(sample.outWidth>4096||sample.outHeight>4096||sample.outWidth<1||sample.outHeight<1)
+                        throw new IOException("Неподдерживаемое разрешение");
+                    sample.inJustDecodeBounds=false;sample.inSampleSize=1;
+                    while(Math.max(sample.outWidth,sample.outHeight)/sample.inSampleSize>size*2)sample.inSampleSize*=2;
+                    thumbnail=BitmapFactory.decodeByteArray(original,0,original.length,sample);
+                }
+                if(thumbnail==null)throw new IOException("Нет миниатюры");
+                Bitmap scaled=Bitmap.createScaledBitmap(thumbnail,size,size*5/4,true);
+                if(scaled!=thumbnail)thumbnail.recycle();
+                thumbnailCache.put(id,scaled);
+                ui.post(()->{if(destroyed)return;preview.setImageBitmap(scaled);fallback.setVisibility(View.GONE);});
+            }catch(Exception err){ui.post(()->{if(!destroyed)fallback.setText("🔒");});}
+            finally{if(original!=null)Arrays.fill(original,(byte)0);}
+        });
+    }
+
     private void shareContact(){
         String u=contact.optString("username","");
         if(u.isEmpty()){Toast.makeText(this,"У контакта нет публичного имени",Toast.LENGTH_SHORT).show();return;}
@@ -509,5 +591,5 @@ public final class StoriesActivity extends Activity {
         });
     }
     @Override public void onBackPressed(){if(viewing)renderFeed();else super.onBackPressed();}
-    @Override protected void onDestroy(){destroyed=true;viewing=false;stopPlayback();io.shutdownNow();super.onDestroy();}
+    @Override protected void onDestroy(){destroyed=true;viewing=false;stopPlayback();io.shutdownNow();thumbnailCache.evictAll();super.onDestroy();}
 }
