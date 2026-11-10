@@ -27,7 +27,7 @@ public final class StoriesActivity extends Activity {
     private JSONArray feed=new JSONArray();
     private static final int ARCHIVE_PAGE_SIZE=50;
     private boolean archiveMode=false,archiveHasMore=false,archiveLoading=false;
-    private int archiveOffset=0,archiveSavedScroll=-1;
+    private int archiveOffset=0,archiveSavedScroll=-1,archiveRequestSerial=0;
     private final android.util.LruCache<String,Bitmap> thumbnailCache=
         new android.util.LruCache<String,Bitmap>(12*1024*1024){
             @Override protected int sizeOf(String key,Bitmap value){return value==null?0:value.getByteCount();}
@@ -124,13 +124,14 @@ public final class StoriesActivity extends Activity {
         if(!archiveMode||archiveLoading)return;
         archiveLoading=true;
         final int offset=append?archiveOffset:0;
+        final int request=++archiveRequestSerial;
         io.execute(()->{
             try{
                 JSONArray entries=(JSONArray)api.rpc("mw_story_archive",
                     new JSONObject().put("p_offset",offset).put("p_limit",ARCHIVE_PAGE_SIZE));
                 ui.post(()->{
+                    if(destroyed||!archiveMode||request!=archiveRequestSerial)return;
                     archiveLoading=false;
-                    if(destroyed||!archiveMode)return;
                     if(!append)feed=entries;
                     else for(int i=0;i<entries.length();i++)feed.put(entries.optJSONObject(i));
                     archiveOffset=offset+entries.length();
@@ -138,7 +139,7 @@ public final class StoriesActivity extends Activity {
                     renderFeed();
                 });
             }catch(Exception e){
-                ui.post(()->{archiveLoading=false;if(!destroyed&&archiveMode)renderFeed();});
+                ui.post(()->{if(request==archiveRequestSerial){archiveLoading=false;if(!destroyed&&archiveMode)renderFeed();}});
                 error(e);
             }
         });
@@ -185,7 +186,7 @@ public final class StoriesActivity extends Activity {
         archive.setContentDescription(archiveMode?"Вернуться к историям":"Открыть личный архив");
         bar.addView(archive,new LinearLayout.LayoutParams(-2,dp(44)));
         archive.setOnClickListener(v->{
-            archiveMode=!archiveMode;archiveLoading=false;archiveOffset=0;archiveHasMore=false;
+            archiveMode=!archiveMode;archiveRequestSerial++;archiveLoading=false;archiveOffset=0;archiveHasMore=false;
             archiveSavedScroll=-1;feed=new JSONArray();renderFeed();reload();
         });
         TextView refresh=toolbarIcon("↻","Обновить истории");
