@@ -25,6 +25,9 @@ public final class StoriesActivity extends Activity {
     private Api api;
     private CryptoBox crypto;
     private JSONArray feed=new JSONArray();
+    private static final int ARCHIVE_PAGE_SIZE=50;
+    private boolean archiveMode=false,archiveHasMore=false,archiveLoading=false;
+    private int archiveOffset=0,archiveSavedScroll=-1;
     private final android.util.LruCache<String,Bitmap> thumbnailCache=
         new android.util.LruCache<String,Bitmap>(12*1024*1024){
             @Override protected int sizeOf(String key,Bitmap value){return value==null?0:value.getByteCount();}
@@ -98,6 +101,7 @@ public final class StoriesActivity extends Activity {
             new AlertDialog.Builder(this).setTitle("Muwahid").setMessage(s).setPositiveButton("Понятно",null).show();}});
     }
     private void reload(){
+        if(archiveMode){loadArchive(false);return;}
         backgroundWork(()->{
             JSONObject profile=new JSONObject();
             if(!profileChatId.isEmpty()){
@@ -108,9 +112,32 @@ public final class StoriesActivity extends Activity {
             args.put("p_person",targetPerson.isEmpty()?JSONObject.NULL:targetPerson);
             JSONArray entries=(JSONArray)api.rpc("mw_story_feed",args);
             final JSONObject target=profile;
-            ui.post(()->{if(destroyed)return;contact=target;feed=entries;
+            ui.post(()->{if(destroyed||archiveMode)return;contact=target;feed=entries;
                 if(personId.isEmpty())personId=targetPerson;
                 renderFeed();});
+        });
+    }
+    private void loadArchive(boolean append){
+        if(!archiveMode||archiveLoading)return;
+        archiveLoading=true;
+        final int offset=append?archiveOffset:0;
+        io.execute(()->{
+            try{
+                JSONArray entries=(JSONArray)api.rpc("mw_story_archive",
+                    new JSONObject().put("p_offset",offset).put("p_limit",ARCHIVE_PAGE_SIZE));
+                ui.post(()->{
+                    archiveLoading=false;
+                    if(destroyed||!archiveMode)return;
+                    if(!append)feed=entries;
+                    else for(int i=0;i<entries.length();i++)feed.put(entries.optJSONObject(i));
+                    archiveOffset=offset+entries.length();
+                    archiveHasMore=entries.length()==ARCHIVE_PAGE_SIZE;
+                    renderFeed();
+                });
+            }catch(Exception e){
+                ui.post(()->{archiveLoading=false;if(!destroyed&&archiveMode)renderFeed();});
+                error(e);
+            }
         });
     }
     private void setRoot(){
@@ -125,20 +152,29 @@ public final class StoriesActivity extends Activity {
         frame.addView(page,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout bar=horizontal();bar.setPadding(dp(15),dp(8),dp(15),dp(9));
         TextView back=button("‹");bar.addView(back);back.setOnClickListener(v->finish());
-        TextView title=text(profileChatId.isEmpty()?"Истории":"Профиль и истории",21,white());title.setTypeface(null,1);
+        TextView title=text(archiveMode?"Мой архив":(profileChatId.isEmpty()?"Истории":"Профиль и истории"),21,white());title.setTypeface(null,1);
         LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(0,dp(52),1);tp.leftMargin=dp(13);bar.addView(title,tp);
+        TextView archive=button(archiveMode?"Сейчас":"Архив");bar.addView(archive);
+        archive.setOnClickListener(v->{
+            archiveMode=!archiveMode;archiveLoading=false;archiveOffset=0;archiveHasMore=false;
+            archiveSavedScroll=-1;feed=new JSONArray();renderFeed();reload();
+        });
         TextView refresh=button("↻");bar.addView(refresh);refresh.setOnClickListener(v->reload());
         page.addView(bar);
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setVerticalScrollBarEnabled(false);
         LinearLayout body=vertical();body.setPadding(dp(16),dp(6),dp(16),dp(30));scroll.addView(body);page.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        if(archiveMode&&archiveSavedScroll>=0){
+            final int savedY=archiveSavedScroll;archiveSavedScroll=-1;
+            scroll.post(()->scroll.scrollTo(0,savedY));
+        }
 
-        if(!profileChatId.isEmpty())renderContact(body);
-        TextView section=text(profileChatId.isEmpty()?"Истории контактов":"Публикации · 24 часа",17,white());
+        if(!archiveMode&&!profileChatId.isEmpty())renderContact(body);
+        TextView section=text(archiveMode?"Мои завершённые истории":(profileChatId.isEmpty()?"Истории контактов":"Публикации · 24 часа"),17,white());
         section.setTypeface(null,1);section.setPadding(0,dp(16),0,dp(10));body.addView(section);
         if(feed.length()==0){
-            TextView empty=text("Пока нет доступных историй. Публикации видны только разрешённым контактам, а содержимое защищено сквозным шифрованием.",14,mutedColor());
+            TextView empty=text(archiveMode?"В архиве пока нет завершённых историй. После 24 часов ваши публикации сохраняются здесь и остаются зашифрованными.":"Пока нет доступных историй. Публикации видны только разрешённым контактам, а содержимое защищено сквозным шифрованием.",14,mutedColor());
             empty.setPadding(dp(14),dp(22),dp(14),dp(22));empty.setBackground(rounded(Color.rgb(18,33,48),18));body.addView(empty);
-        }else if(!profileChatId.isEmpty()){
+        }else if(!archiveMode&&!profileChatId.isEmpty()){
             renderStoryGrid(body);
         }else{
             for(int i=0;i<feed.length();i++){
@@ -155,12 +191,20 @@ public final class StoriesActivity extends Activity {
                 LinearLayout.LayoutParams space=new LinearLayout.LayoutParams(1,dp(8));body.addView(new View(this),space);
             }
         }
-        TextView add=button("＋  Опубликовать фото или видео");
-        add.setBackground(rounded(Color.rgb(15,123,115),16));
-        LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(55));ap.setMargins(0,dp(16),0,0);
-        body.addView(add,ap);add.setOnClickListener(v->chooseStoryFile());
-        TextView small=text("До 60 секунд · до 25 МБ · только проверенные контакты · исчезает из просмотра через 24 часа",12,mutedColor());
-        small.setPadding(dp(4),dp(12),dp(4),0);body.addView(small);
+        if(archiveMode&&archiveHasMore){
+            TextView more=button("Загрузить ещё истории");
+            LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,dp(55));mp.setMargins(0,dp(14),0,0);
+            body.addView(more,mp);
+            more.setOnClickListener(v->{more.setEnabled(false);archiveSavedScroll=scroll.getScrollY();loadArchive(true);});
+        }
+        if(!archiveMode){
+            TextView add=button("＋  Опубликовать фото или видео");
+            add.setBackground(rounded(Color.rgb(15,123,115),16));
+            LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(55));ap.setMargins(0,dp(16),0,0);
+            body.addView(add,ap);add.setOnClickListener(v->chooseStoryFile());
+            TextView small=text("До 60 секунд · до 25 МБ · только проверенные контакты · исчезает из просмотра через 24 часа",12,mutedColor());
+            small.setPadding(dp(4),dp(12),dp(4),0);body.addView(small);
+        }
     }
     private void renderContact(LinearLayout body){
         LinearLayout header=vertical();header.setPadding(dp(17),dp(22),dp(17),dp(17));header.setBackground(rounded(Color.rgb(22,41,57),21));
