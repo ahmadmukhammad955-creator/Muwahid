@@ -152,6 +152,12 @@ methods=r'''
         Uri uri=Intent.ACTION_VIEW.equals(action)?inbound.getData():
             (Uri)inbound.getParcelableExtra(Intent.EXTRA_STREAM);
         if(uri==null)return;
+        String type=inbound.getType();
+        String segment=uri.getLastPathSegment();
+        String suffix=segment==null?"":segment.toLowerCase(java.util.Locale.ROOT);
+        boolean archiveType="application/vnd.android.package-archive".equals(type)
+            ||"application/zip".equals(type)||"application/octet-stream".equals(type);
+        if(!archiveType&&!suffix.endsWith(".apk")&&!suffix.endsWith(".zip"))return;
         inbound.setAction(null); // Prevent repeated dialog when activity resumes.
         confirmImportStickerArchive(uri);
     }
