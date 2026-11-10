@@ -67,8 +67,8 @@ one(MAIN,
     'if(!notesMode)words.setOnClickListener(v->openContactStories());')
 
 one(MAIN,
-    'else showAccountSettings();}).show();',
-    'else openContactStories();}).show();')
+    '            }else showAccountSettings();\n        }).show();',
+    '            }else openContactStories();\n        }).show();')
 
 # Toolbar chatID is real, from mw_chats, and has a real profile/author.
 anchor='    private void showChat(String id,String name){'
