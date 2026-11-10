@@ -324,36 +324,54 @@ public final class StoriesActivity extends Activity {
     }
     private void renderStoryGrid(LinearLayout body){
         android.widget.GridLayout gallery=new android.widget.GridLayout(this);
-        gallery.setColumnCount(3);
-        int tile=Math.max(dp(88),(getResources().getDisplayMetrics().widthPixels-dp(52))/3);
+        gallery.setColumnCount(2);
+        int tile=Math.max(dp(110),(getResources().getDisplayMetrics().widthPixels-dp(44))/2);
         int count=Math.min(feed.length(),48);
         for(int i=0;i<count;i++){
             final int index=i;
             JSONObject story=feed.optJSONObject(i);if(story==null)continue;
             FrameLayout tileView=new FrameLayout(this);
-            tileView.setBackground(rounded(Color.rgb(24,43,59),9));
-            ImageView preview=new ImageView(this);preview.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            preview.setBackground(rounded(Color.rgb(29,48,64),9));
+            tileView.setBackground(rounded(Color.rgb(24,43,59),14));
+            tileView.setClipToOutline(true);
+            tileView.setContentDescription("Открыть историю "+(i+1));
+            ImageView preview=new ImageView(this);
+            preview.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            preview.setBackgroundColor(Color.rgb(20,43,57));
             tileView.addView(preview,new FrameLayout.LayoutParams(-1,-1));
-            TextView fallback=text("🔒",22,white());fallback.setGravity(Gravity.CENTER);
+            TextView fallback=text("▧",31,mutedColor());
+            fallback.setGravity(Gravity.CENTER);
             tileView.addView(fallback,new FrameLayout.LayoutParams(-1,-1));
-            String meta=("video".equals(story.optString("media_kind"))?"▶ ":"")
-                +(story.optBoolean("visible_on_profile",false)?"📌 ":"")
-                +story.optString("created_at","").substring(0,Math.min(10,story.optString("created_at","").length()));
-            TextView label=text(meta,11,white());label.setPadding(dp(6),dp(3),dp(4),dp(3));
-            label.setBackgroundColor(0x99081220);
-            FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(-1,dp(27),Gravity.BOTTOM);
-            tileView.addView(label,lp);
+            View shade=new View(this);
+            shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0x00000000,0x88040C16,0xDD040C16}));
+            FrameLayout.LayoutParams sh=new FrameLayout.LayoutParams(-1,dp(84),Gravity.BOTTOM);
+            tileView.addView(shade,sh);
+            LinearLayout over=vertical();over.setGravity(Gravity.BOTTOM);
+            over.setPadding(dp(11),dp(8),dp(8),dp(10));
+            TextView display=text(story.optString("display_name","История"),14,white());
+            display.setTypeface(null,1);
+            display.setSingleLine(true);display.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            over.addView(display);
+            String stamp=story.optString("created_at","");
+            stamp=stamp.substring(0,Math.min(10,stamp.length()));
+            String meta=("video".equals(story.optString("media_kind"))?"▶ Видео":"▧ Фото")
+                +(story.optBoolean("visible_on_profile",false)?" · Закреплена":"")
+                +(stamp.isEmpty()?"":" · "+stamp);
+            TextView line=text(meta,11,Color.rgb(214,228,237));
+            line.setSingleLine(true);line.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            over.addView(line);
+            tileView.addView(over,new FrameLayout.LayoutParams(-1,dp(72),Gravity.BOTTOM));
             android.widget.GridLayout.LayoutParams gp=new android.widget.GridLayout.LayoutParams();
-            gp.width=tile;gp.height=tile*5/4;gp.setMargins(dp(2),dp(2),dp(2),dp(2));
+            gp.width=tile;gp.height=tile*6/5;
+            gp.setMargins(dp(2),dp(2),dp(2),dp(2));
             gallery.addView(tileView,gp);
             tileView.setOnClickListener(v->openStory(index));
-            if(i<30)loadThumbnail(story,preview,fallback,tile);
+            loadThumbnail(story,preview,fallback,tile);
         }
         body.addView(gallery);
         if(feed.length()>48){
-            TextView note=text("Показаны последние 48 публикаций",12,mutedColor());
-            note.setPadding(dp(4),dp(10),dp(4),dp(5));body.addView(note);
+            TextView note=text("Показаны последние 48 историй. Для остальных используйте обновление и архив.",12,mutedColor());
+            note.setPadding(dp(4),dp(12),dp(4),dp(5));body.addView(note);
         }
     }
     private void loadThumbnail(JSONObject story,ImageView preview,TextView fallback,int size){
