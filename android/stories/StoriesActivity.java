@@ -590,8 +590,12 @@ public final class StoriesActivity extends Activity {
         String[] emoji={"❤️","👍","👎","🔥","🥰","👏","😁","🤔","😮","😢","🎉","😍","😂","😎","😱","🙏","💯","💋","✨","🤩","💐","🥳","😇","👀"};
         android.widget.GridLayout grid=new android.widget.GridLayout(this);grid.setColumnCount(6);
         grid.setPadding(dp(10),dp(10),dp(10),dp(10));
+        LinearLayout holder=vertical();holder.addView(grid);
+        TextView other=button("＋  Другой эмодзи");
+        other.setPadding(dp(10),dp(12),dp(10),dp(12));holder.addView(other);
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Реакция на историю")
-            .setView(grid).setNegativeButton("Закрыть",null).create();
+            .setView(holder).setNegativeButton("Закрыть",null).create();
+        other.setOnClickListener(v->{dialog.dismiss();showCustomReactionDialog(item);});
         for(String e:emoji){
             TextView cell=text(e,26,white());cell.setGravity(Gravity.CENTER);
             android.widget.GridLayout.LayoutParams p=new android.widget.GridLayout.LayoutParams();
@@ -599,6 +603,40 @@ public final class StoriesActivity extends Activity {
             grid.addView(cell,p);cell.setOnClickListener(v->{dialog.dismiss();sendReaction(item,e);});
         }
         dialog.show();
+    }
+    private void showCustomReactionDialog(JSONObject story){
+        EditText input=new EditText(this);input.setSingleLine(true);
+        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(18)});
+        input.setHint("Введите любой эмодзи");
+        new AlertDialog.Builder(this).setTitle("Другой эмодзи")
+            .setMessage("Можно выбрать эмодзи на клавиатуре Android")
+            .setView(input).setNegativeButton("Отмена",null)
+            .setPositiveButton("Отправить",(d,w)->{
+                String e=input.getText().toString().trim();
+                if(e.isEmpty()||e.codePointCount(0,e.length())>8){
+                    Toast.makeText(this,"Выберите короткую реакцию",Toast.LENGTH_SHORT).show();return;
+                }
+                sendReaction(story,e);
+            }).show();
+    }
+    private void playReactionEffect(String emoji){
+        if(!viewing||frame==null)return;
+        TextView effect=text(emoji,72,white());effect.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams pos=new FrameLayout.LayoutParams(dp(148),dp(148),Gravity.CENTER);
+        frame.addView(effect,pos);effect.setScaleX(.4f);effect.setScaleY(.4f);
+        android.animation.ObjectAnimator scaleX=android.animation.ObjectAnimator.ofFloat(effect,"scaleX",.4f,1.6f);
+        android.animation.ObjectAnimator scaleY=android.animation.ObjectAnimator.ofFloat(effect,"scaleY",.4f,1.6f);
+        android.animation.ObjectAnimator floatUp=android.animation.ObjectAnimator.ofFloat(effect,"translationY",0f,-dp(115));
+        android.animation.ObjectAnimator fade=android.animation.ObjectAnimator.ofFloat(effect,"alpha",1f,0f);
+        android.animation.AnimatorSet animation=new android.animation.AnimatorSet();
+        animation.playTogether(scaleX,scaleY,floatUp,fade);animation.setDuration(800);
+        animation.addListener(new android.animation.AnimatorListenerAdapter(){
+            @Override public void onAnimationEnd(android.animation.Animator a){
+                if(effect.getParent() instanceof android.view.ViewGroup)
+                    ((android.view.ViewGroup)effect.getParent()).removeView(effect);
+            }
+        });
+        animation.start();
     }
     private void sendReaction(JSONObject story,String emoji){
         backgroundWork(()->{
@@ -609,7 +647,10 @@ public final class StoriesActivity extends Activity {
             if(peer.isEmpty()||!crypto.isPeerVerified(uid,chat,peer))throw new SecurityException("Сверьте ключ безопасности контакта");
             String encrypted=crypto.encryptText(uid,chat,peer,emoji);
             api.rpc("mw_story_react",new JSONObject().put("p_story",story.getString("id")).put("p_ciphertext",encrypted));
-            ui.post(()->{if(!destroyed)Toast.makeText(this,"Реакция отправлена "+emoji,Toast.LENGTH_SHORT).show();});
+            ui.post(()->{if(!destroyed){
+                playReactionEffect(emoji);
+                Toast.makeText(this,"Реакция отправлена "+emoji,Toast.LENGTH_SHORT).show();
+            }});
         });
     }
     @Override public void onBackPressed(){if(viewing)renderFeed();else super.onBackPressed();}
