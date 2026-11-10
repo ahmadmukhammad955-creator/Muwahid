@@ -220,9 +220,10 @@ function lockedAudioHealth(){return !audioActivated||audioCtx?.state!=='running'
 function updateAudioHealth(){
   const box=document.getElementById('audioHelp'),label=document.getElementById('voiceHealth'),btn=document.getElementById('audioActivateBtn');
   if(!box||!label||!btn)return;
-  box.classList.toggle('hidden',!stateData||stateData.waiting||(!lockedAudioHealth()&&!rtcProblem));
-  if(!stateData||stateData.waiting)return;
+  if(!stateData||stateData.waiting){box.classList.add('hidden');return;}
   const others=(stateData.members||[]).filter(m=>m.id!==stateData.self_id),connected=others.filter(m=>pcs[m.id]?.connectionState==='connected').length;
+  // A connected microphone icon does NOT mean a connected media path.
+  box.classList.toggle('hidden',!lockedAudioHealth()&&!rtcProblem&&(!others.length||connected===others.length));
   const me=(stateData.members||[]).find(m=>m.id===stateData.self_id);
   const locked=!audioActivated||audioCtx?.state!=='running'||playbackBlocked;
   btn.classList.toggle('hidden',!locked);
@@ -241,7 +242,7 @@ async function activateAudio(){
     // to produce audio: play() can remain pending until the peer actually connects.
     playbackBlocked=false;
     for(const a of document.querySelectorAll('#remoteAudios audio')){
-      a.play().catch(()=>{playbackBlocked=true;reportRtcProblem('Воспроизведение заблокировано. Нажмите «Включить звук».');});
+      a.muted=false;a.volume=1;a.play().catch(()=>{playbackBlocked=true;reportRtcProblem('Воспроизведение заблокировано. Нажмите «Включить звук».');});
     }
     await resume;
     if(ctx.state!=='running')throw new Error('Звук заблокирован Android WebView. Нажмите «Включить звук» ещё раз.');
@@ -267,7 +268,7 @@ function roleName(r){return r==='owner'?'Владелец':r==='host'?'Веду�
 function initials(n){return (n||'M').trim().slice(0,1).toUpperCase()||'M';}
 function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function scheduleState(delay=900){clearTimeout(stateTimer);if(closed)return;stateTimer=setTimeout(async()=>{await refreshState();scheduleState(900);},delay);}
-function signalDelay(){if(closed||!stateData||stateData.waiting)return 500;const ids=(stateData.members||[]).map(x=>x.id).filter(x=>x!==stateData.self_id);if(!ids.length)return 500;let ready=0;for(const id of ids){const pc=pcs[id];if(pc&&(pc.connectionState==='connected'||pc.iceConnectionState==='connected'||pc.iceConnectionState==='completed'))ready++;}return ready===ids.length?600:90;}
+function signalDelay(){if(closed||!stateData||stateData.waiting)return 500;const ids=(stateData.members||[]).map(x=>x.id).filter(x=>x!==stateData.self_id);if(!ids.length)return 500;let ready=0;for(const id of ids){const pc=pcs[id];if(pc&&(pc.connectionState==='connected'||pc.iceConnectionState==='connected'||pc.iceConnectionState==='completed'))ready++;}return ready===ids.length?1000:220;}
 function scheduleSignals(delay=60){clearTimeout(signalTimer);if(closed)return;signalTimer=setTimeout(async()=>{await pollSignals();scheduleSignals(signalDelay());},delay);}
 function scheduleMessages(delay=1800){clearTimeout(messageTimer);if(closed)return;messageTimer=setTimeout(async()=>{await pollMessages();scheduleMessages(1800);},delay);}
 function scheduleBook(delay=900){clearTimeout(bookTimer);if(closed)return;bookTimer=setTimeout(async()=>{await refreshBookState();scheduleBook(bookState?.active?650:1800);},delay);}
@@ -644,7 +645,7 @@ async function toggleRecording(){if(roomRecorder&&roomRecorder.state!=='inactive
 function stopRoomRecording(){return new Promise(resolve=>{if(!roomRecorder||roomRecorder.state==='inactive'){resolve();return;}recordStopResolve=resolve;try{roomRecorder.requestData();roomRecorder.stop();}catch(e){recordStopResolve=null;resolve();}});}
 window.mwRecordingSaved=name=>banner('Запись сохранена: '+name);
 
-function getAudioContext(){if(!audioCtx){const C=window.AudioContext||window.webkitAudioContext;if(C){audioCtx=new C();audioCtx.addEventListener('statechange',updateAudioHealth);}}if(audioCtx?.state==='suspended')audioCtx.resume().catch(()=>{});return audioCtx;}
+function getAudioContext(){if(!audioCtx){const C=window.AudioContext||window.webkitAudioContext;if(C){audioCtx=new C();audioCtx.addEventListener('statechange',updateAudioHealth);}}return audioCtx;}
 function attachLevel(id,stream){if(!id||!stream||levelNodes[id])return;try{const ctx=getAudioContext();if(!ctx)return;const source=ctx.createMediaStreamSource(stream),analyser=ctx.createAnalyser();analyser.fftSize=256;analyser.smoothingTimeConstant=.72;source.connect(analyser);if(recordDest&&String(id)!==String(stateData?.self_id||S.selfId))source.connect(recordDest);levelNodes[id]={source,analyser,data:new Uint8Array(analyser.fftSize),smooth:0};startLevelLoop();}catch(e){}}
 function detachLevel(id){const n=levelNodes[id];if(!n)return;try{n.source.disconnect();n.analyser.disconnect();}catch(e){}delete levelNodes[id];}
 function startLevelLoop(){if(levelLoop)return;levelLoop=true;requestAnimationFrame(levelTick);}
@@ -711,9 +712,23 @@ async function createLocalMedia(){
   const a=micStream.getAudioTracks()[0];if(a)a.enabled=false;attachLevel(stateData?.self_id||S.selfId,micStream);applyMixerState();syncOwnTrack();bindVideoTiles();return localStream;
 }
 function syncOwnTrack(){if(!stateData||stateData.waiting)return;const me=(stateData.members||[]).find(x=>x.id===stateData.self_id),enabled=!!(me&&me.mic_allowed&&me.mic_enabled),a=micStream?.getAudioTracks?.()[0];if(a)a.enabled=enabled;if(outGain&&audioCtx)outGain.gain.setTargetAtTime(enabled?1:0,audioCtx.currentTime,.018);}
-function rtc(){return new RTCPeerConnection({iceCandidatePoolSize:4,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require',iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});} // TURN credentials must come from a trusted server; STUN alone cannot guarantee connectivity across mobile NATs.
+function rtc(){return new RTCPeerConnection({iceCandidatePoolSize:4,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require',iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:stun.cloudflare.com:3478'}]});} // Without an authenticated short-lived TURN relay, different mobile networks may not connect; never embed TURN secrets in APK.
 function audioFor(peer){let a=document.getElementById('audio_'+peer);if(!a){a=document.createElement('audio');a.id='audio_'+peer;a.className='remoteAudio';a.autoplay=true;a.playsInline=true;a.preload='auto';a.volume=1;document.getElementById('remoteAudios').appendChild(a);}return a;}
-async function flushLocalIce(peer,pc){const batch=pc?._iceBatch||[];pc._iceBatch=[];pc._iceTimer=null;if(!batch.length)return;await sendSignal(peer,'ice',{candidates:batch});}
+async function flushLocalIce(peer,pc){
+  if(!pc)return;
+  pc._iceTimer=null;
+  const batch=pc._iceBatch||[];
+  pc._iceBatch=[];
+  if(!batch.length)return;
+  try{await sendSignal(peer,'ice',{candidates:batch});}
+  catch(e){
+    // Never discard local ICE candidates just because Supabase momentarily failed.
+    if(!closed&&pcs[peer]===pc&&pc.connectionState!=='closed'){
+      pc._iceBatch=batch.concat(pc._iceBatch||[]);
+      if(!pc._iceTimer)pc._iceTimer=setTimeout(()=>flushLocalIce(peer,pc).catch(()=>{}),900);
+    }
+  }
+}
 async function createPeer(peer,initiator){
   if(pcs[peer])return pcs[peer];
   const stream=await ensureLocal();if(pcs[peer])return pcs[peer];
@@ -724,20 +739,26 @@ async function createPeer(peer,initiator){
     const remote=e.streams&&e.streams[0]?e.streams[0]:new MediaStream([e.track]);
     remoteStreams[peer]=remote;
     if(remote.getAudioTracks().length){
-      attachLevel(peer,remote);const a=audioFor(peer);a.srcObject=remote;
+      attachLevel(peer,remote);const a=audioFor(peer);a.srcObject=remote;a.muted=false;a.volume=1;
       a.play().then(()=>{playbackBlocked=false;updateAudioHealth();}).catch(err=>{playbackBlocked=true;reportRtcProblem('Воспроизведение заблокировано. Нажмите «Включить звук».');});
     }bindVideoTiles();
   };
   pc.onicecandidate=e=>{if(!e.candidate)return;(pc._iceBatch||(pc._iceBatch=[])).push(e.candidate.toJSON());if(!pc._iceTimer)pc._iceTimer=setTimeout(()=>flushLocalIce(peer,pc).catch(()=>{}),90);};
-  pc.onconnectionstatechange=()=>{updateAudioHealth();if(pc.connectionState==='failed')reportRtcProblem('Нет соединения между телефонами (возможно, нужен TURN-сервер).');if(['failed','closed'].includes(pc.connectionState))closePeer(peer);};
+  pc.onconnectionstatechange=()=>{updateAudioHealth();if(pc.connectionState==='failed')reportRtcProblem('WebRTC не подключился: проверьте Wi-Fi и TURN-сервер.');if(['failed','closed'].includes(pc.connectionState))closePeer(peer);};
+  pc.oniceconnectionstatechange=()=>{if(pc.iceConnectionState==='failed')reportRtcProblem('ICE-соединение не установлено. Требуется сетевой TURN-ретранслятор.');updateAudioHealth();};
   try{if(initiator)await makeOffer(peer,pc);}catch(e){reportRtcProblem('Не удалось договориться о связи: '+(e.message||'сбой'));closePeer(peer);throw e;}
   return pc;
 }
 async function makeOffer(peer,pc){if(pc._offered||pc.signalingState!=='stable')return;pc._offered=true;const offer=await pc.createOffer({offerToReceiveAudio:true,offerToReceiveVideo:IS_VIDEO});await pc.setLocalDescription(offer);await sendSignal(peer,'offer',{sdp:offer.sdp});}
 async function syncPeers(){if(!stateData||stateData.waiting)return;await ensureLocal();const ids=(stateData.members||[]).map(x=>x.id).filter(x=>x!==stateData.self_id);for(const id of ids){if(!pcs[id])createPeer(id,String(stateData.self_id).localeCompare(String(id))<0).catch(()=>{});}Object.keys(pcs).forEach(id=>{if(!ids.includes(id))closePeer(id);});}
 async function sendSignal(to,kind,payload){try{return await rpc('mw_room_signal_send',{p_room:S.roomId,p_to:to,p_kind:kind,p_payload:payload||{}});}catch(e){reportRtcProblem('Сигнал '+kind+' не отправлен: '+(e.message||'ошибка сервера'));throw e;}}
-async function pollSignals(){if(closed||signalBusy||!stateData||stateData.waiting)return;signalBusy=true;try{const arr=await rpc('mw_room_signal_poll',{p_room:S.roomId,p_after:lastSignal});for(const s of(arr||[])){lastSignal=Math.max(lastSignal,Number(s.id)||0);await handleSignal(s);}}catch(e){reportRtcProblem('Не удалось получить сигнал: '+(e.message||'ошибка сервера'));}finally{signalBusy=false;}}
-async function handleSignal(s){const peer=s.from_user,p=s.payload||{};try{if(s.kind==='offer'){let pc=pcs[peer];if(!pc)pc=await createPeer(peer,false);if(pc.signalingState!=='stable'&&pc.localDescription?.type==='offer'){if(String(stateData.self_id).localeCompare(String(peer))<0)return;await pc.setLocalDescription({type:'rollback'});}await pc.setRemoteDescription({type:'offer',sdp:p.sdp});await flushIce(peer,pc);const ans=await pc.createAnswer();await pc.setLocalDescription(ans);await sendSignal(peer,'answer',{sdp:ans.sdp});}else if(s.kind==='answer'){const pc=pcs[peer];if(pc&&pc.signalingState==='have-local-offer'){await pc.setRemoteDescription({type:'answer',sdp:p.sdp});await flushIce(peer,pc);}}else if(s.kind==='ice'){const cs=Array.isArray(p.candidates)?p.candidates:(p.candidate?[p.candidate]:[]);if(!cs.length)return;const pc=pcs[peer];for(const c of cs){if(pc&&pc.remoteDescription){await pc.addIceCandidate(c);}else{(iceQueue[peer]||(iceQueue[peer]=[])).push(c);}}}else if(s.kind==='bye')closePeer(peer);}catch(e){reportRtcProblem('Сбой согласования WebRTC: '+(e.message||'ошибка'));}}
+async function pollSignals(){if(closed||signalBusy||!stateData||stateData.waiting)return;signalBusy=true;try{const arr=await rpc('mw_room_signal_poll',{p_room:S.roomId,p_after:lastSignal});for(const s of(arr||[])){
+      // A transient WebRTC exception must not permanently acknowledge the signal.
+      const processed=await handleSignal(s);
+      if(processed===false)break;
+      lastSignal=Math.max(lastSignal,Number(s.id)||0);
+    }}catch(e){reportRtcProblem('Не удалось получить сигнал: '+(e.message||'ошибка сервера'));}finally{signalBusy=false;}}
+async function handleSignal(s){const peer=s.from_user,p=s.payload||{};try{if(s.kind==='offer'){let pc=pcs[peer];if(!pc)pc=await createPeer(peer,false);if(pc.signalingState!=='stable'&&pc.localDescription?.type==='offer'){if(String(stateData.self_id).localeCompare(String(peer))<0)return;await pc.setLocalDescription({type:'rollback'});}await pc.setRemoteDescription({type:'offer',sdp:p.sdp});await flushIce(peer,pc);const ans=await pc.createAnswer();await pc.setLocalDescription(ans);await sendSignal(peer,'answer',{sdp:ans.sdp});}else if(s.kind==='answer'){const pc=pcs[peer];if(pc&&pc.signalingState==='have-local-offer'){await pc.setRemoteDescription({type:'answer',sdp:p.sdp});await flushIce(peer,pc);}}else if(s.kind==='ice'){const cs=Array.isArray(p.candidates)?p.candidates:(p.candidate?[p.candidate]:[]);if(!cs.length)return;const pc=pcs[peer];for(const c of cs){if(pc&&pc.remoteDescription){await pc.addIceCandidate(c);}else{(iceQueue[peer]||(iceQueue[peer]=[])).push(c);}}}else if(s.kind==='bye')closePeer(peer);}catch(e){reportRtcProblem('Сбой согласования WebRTC: '+(e.message||'ошибка'));return false;}}
 async function flushIce(peer,pc){for(const c of(iceQueue[peer]||[])){try{await pc.addIceCandidate(c);}catch(e){}}iceQueue[peer]=[];}
 function closePeer(id){const pc=pcs[id];if(pc){if(pc._iceTimer)clearTimeout(pc._iceTimer);pc._iceTimer=null;pc._iceBatch=[];try{pc.close();}catch(e){}delete pcs[id];}detachLevel(id);delete remoteStreams[id];delete iceQueue[id];const a=document.getElementById('audio_'+id);if(a){try{a.srcObject=null;}catch(e){}a.remove();}if(!closed)updateAudioHealth();}
 function closeAll(){Object.keys(pcs).forEach(closePeer);}
