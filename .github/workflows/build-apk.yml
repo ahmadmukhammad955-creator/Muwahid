@@ -139,14 +139,22 @@ jobs:
           curl --fail --location --silent --show-error --retry 3 --max-time 90 \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/v0.13.37/Muwahid-0.13.37.apk" -o "$previous"
           echo "54efec58bcd0cb3e3d9661dc48731513a8d57148adc33b17d48fc15a336792e1  $previous" | sha256sum -c
-          apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          apksigner="$ANDROID_HOME/build-tools/34.0.0/apksigner"
+          if [ ! -x "$apksigner" ]; then
+            sdkmanager "build-tools;34.0.0"
+          fi
           test -x "$apksigner"
-          certificate() {
-            "$apksigner" verify --print-certs "$1" | awk '/^Signer #[0-9]+ certificate SHA-256 digest:/{print $NF}' | sort
-          }
-          previous_certificate="$(certificate "$previous")"
-          test -n "$previous_certificate"
-          test "$(certificate Muwahid/app/build/outputs/apk/release/app-release.apk)" = "$previous_certificate"
+          expected_certificate=6dc70bc1686081abfa3f3d17d6fe9ef98e9db125328e6859628723c50ffa2bf5
+          for apk in "$previous" Muwahid/app/build/outputs/apk/release/app-release.apk; do
+            echo "Checking signature of $apk"
+            certificates="$("$apksigner" verify --verbose --print-certs "$apk")"
+            printf '%s\n' "$certificates"
+            digest="$(printf '%s\n' "$certificates" | awk '/^Signer #[0-9]+ certificate SHA-256 digest:/{print $NF}')"
+            if [ "$digest" != "$expected_certificate" ]; then
+              echo "::error::The APK is not signed with the certificate used by the public Muwahid release."
+              exit 1
+            fi
+          done
 
       - name: Enable KVM
         run: |
@@ -180,7 +188,7 @@ jobs:
             ! grep -q 'FATAL EXCEPTION' crash-log.txt || { cat crash-log.txt; exit 1; }
 
       - name: Upload installable debug APK
-        if: always()
+        if: ${{ always() && env.MUWAHID_STABLE_SIGNING != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: Muwahid-0.13.38-debug-apk
