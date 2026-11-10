@@ -1,0 +1,94 @@
+91-    private String screen="welcome", chatId="", chatName="", filter="", chatPeerLastSeen="";
+92-    private boolean chatPeerOnline;
+93-    private String chatFolderFilter="all";
+94-    private String mainTab="Все";
+95-    // Set while an invite or recovery is launching, to avoid two LIVE activities
+96:    // when MainActivity.onResume runs before the posted launch executes.
+97-    private boolean liveRoomLaunchPending;
+98-    private boolean phoneRegisterMode;
+99-    private PhoneEntryView phoneEntry;
+100-    private String pendingText="", pendingNonce="", peerE2eeKey="";
+101-    private volatile String pendingPayload="", e2eePublishedFor="";
+--
+106-    private JSONObject profile=new JSONObject();
+107-    private int generation=0;
+108-    private boolean foreground, loading, sending, notesMode, olderAvailable;
+109-    private final Runnable poll=new Runnable(){public void run(){
+110-        if(!foreground)return;
+111:        UpdateManager.checkInForeground(MainActivity.this);
+112-        if(!loading&&!sending&&api.signedIn()){
+113-            if(screen.equals("chats"))loadChats(false);
+114-            else if(screen.equals("chat")&&!notesMode)loadMessages(false);
+115-        }
+116-        handler.postDelayed(this,prefs.getBoolean("energy_saver",false)?12000:5000);
+--
+124-    interface Done { void accept(Object result) throws Exception; }
+125-    interface JsonDone { void accept(JSONObject result) throws Exception; }
+126-    interface StringDone { void accept(String value); }
+127-    @Override public void onCreate(Bundle b){
+128-        super.onCreate(b); if(AppLock.guard(this))return; prefs=getSharedPreferences("muwahid",MODE_PRIVATE); if(!prefs.getBoolean("whatsapp_live_ui_v1",false)){prefs.edit().putString("theme_mode","dark").putBoolean("dark",true).putString("chat_theme","mint").putString("chat_folder","all").putBoolean("whatsapp_live_ui_v1",true).apply();} api=new Api(new SecureStore(this)); crypto=new CryptoBox(this); remote=new RemoteConfig(prefs); audioManager=(AudioManager)getSystemService(AUDIO_SERVICE); sensorManager=(SensorManager)getSystemService(SENSOR_SERVICE); proximitySensor=sensorManager==null?null:sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY); colors();
+129:        UpdateManager.checkOnLaunch(this);
+130-        requestUpdatePermissionIfNeeded();
+131-        getWindow().setStatusBarColor(bg);getWindow().setNavigationBarColor(bg);
+132-        if(getIntent().getBooleanExtra("open_security_mfa",false)){showTwoFactor();return;}
+133-        if(handleOAuthIntent(getIntent()))return;
+134-        if(api.signedIn()){maybeStartNotifications();if(handleLiveInviteIntent(getIntent())){refreshRemoteConfig(true);return;}if(getIntent().getBooleanExtra("open_contacts",false))showContacts();else{String id=getIntent().getStringExtra("open_chat_id");String name=getIntent().getStringExtra("open_chat_name");if(id!=null&&!id.isEmpty())showChat(id,name==null?"Чат":name);else showChats();}handler.post(()->handleSharedStickerIntent(getIntent()));}else{handleLiveInviteIntent(getIntent());showWelcome();}
+--
+174-        if(checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED)return;
+175-        if(prefs.getBoolean("update_permission_prompted",false))return;
+176-        prefs.edit().putBoolean("update_permission_prompted",true).apply();
+177-        requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},7001);
+178-    }
+179:    @Override protected void onResume(){
+180:        super.onResume();if(isFinishing()||AppLock.guard(this))return;foreground=true;handler.removeCallbacks(poll);
+181-        // If Android restored an already authenticated task on the public welcome screen,
+182-        // return the user to the messenger instead of showing registration again.
+183-        handler.removeCallbacks(presenceHeartbeat);
+184-        if(api!=null && api.signedIn()){updatePresence(true);PushRegistration.refresh(this);handler.postDelayed(presenceHeartbeat,20000);}
+185-        if(api!=null && api.signedIn() && "welcome".equals(screen)){showChats();}
+186-        refreshRemoteConfig(false);
+187:        UpdateManager.checkInForeground(this);
+188-        updateProximityListener();
+189-        if("chats".equals(screen))syncActiveCallBanner();
+190-        // Restore the exact room after Android destroys the Activity in the background.
+191-        // A manual leave clears the saved ID; no new room is created here.
+192-        final String savedRoom=prefs.getBoolean("live_active",false)?prefs.getString("live_room_id",""):"";
+--
+449-    }
+450-    private TextView cardCaption(LinearLayout card,String value){TextView t=label(value,13,Color.rgb(112,184,235));bold(t);t.setPadding(dp(10),dp(9),dp(10),dp(7));card.addView(t);return t;}
+451-    private LinearLayout simpleSettingRow(LinearLayout card,String title,String subtitle,View right){LinearLayout row=horizontal();row.setPadding(dp(10),dp(9),dp(8),dp(9));LinearLayout words=vertical();TextView t=label(title,16,text);words.addView(t);if(subtitle!=null&&!subtitle.isEmpty()){TextView sub=label(subtitle,12,muted);sub.setPadding(0,dp(2),0,0);words.addView(sub);}row.addView(words,new LinearLayout.LayoutParams(0,-2,1));if(right!=null)row.addView(right);card.addView(row,new LinearLayout.LayoutParams(-1,-2));return row;}
+452-    private Switch cardSwitch(LinearLayout card,String title,String subtitle,boolean checked,String key){Switch sw=new Switch(this);sw.setChecked(checked);sw.setShowText(false);LinearLayout row=simpleSettingRow(card,title,subtitle,sw);row.setOnClickListener(v->sw.toggle());sw.setOnCheckedChangeListener((b,on)->prefs.edit().putBoolean(key,on).apply());return sw;}
+453-    private TextView valueText(String value){TextView v=label(value,14,Color.rgb(104,183,236));v.setGravity(Gravity.CENTER_VERTICAL|Gravity.END);v.setPadding(dp(10),0,dp(4),0);return v;}
+454:    private SeekBar settingSeek(LinearLayout card,String title,int min,int max,int value,String key,Runnable changed){LinearLayout top=horizontal();TextView t=label(title,13,Color.rgb(112,184,235));bold(t);top.addView(t,new LinearLayout.LayoutParams(0,-2,1));TextView number=label(String.valueOf(value),13,Color.rgb(112,184,235));top.addView(number);top.setPadding(dp(10),dp(8),dp(10),0);card.addView(top);SeekBar seek=new SeekBar(this);if(Build.VERSION.SDK_INT>=26)seek.setMin(min);seek.setMax(max);seek.setProgress(value);seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar b,int p,boolean from){int v=Math.max(min,p);number.setText(String.valueOf(v));if(from)prefs.edit().putInt(key,v).apply();}public void onStartTrackingTouch(SeekBar b){}public void onStopTrackingTouch(SeekBar b){if(changed!=null)changed.run();}});card.addView(seek,new LinearLayout.LayoutParams(-1,dp(44)));return seek;}
+455-    private void showChatSettings(){
+456-        begin("chat_settings");toolbar("Настройки чатов",true,"⋮",()->notice("Настройки оформления сохраняются только на этом устройстве."));scrollContent();
+457-        LinearLayout sizeCard=settingsCard();settingSeek(sizeCard,"Размер текста сообщений",14,24,prefs.getInt("message_text_size",18),"message_text_size",null);
+458-        LinearLayout preview=horizontal();preview.setPadding(dp(8),dp(8),dp(8),dp(12));LinearLayout left=vertical();TextView one=label("Доброе утро! 👋",prefs.getInt("message_text_size",18),Color.WHITE);left.setPadding(dp(10),dp(7),dp(10),dp(7));left.setBackground(incomingBubbleDrawable());left.addView(one);preview.addView(left,new LinearLayout.LayoutParams(0,-2,1));TextView mine=label("В Токио утро 😎",prefs.getInt("message_text_size",18),Color.WHITE);mine.setPadding(dp(12),dp(9),dp(12),dp(9));mine.setBackground(outgoingBubbleDrawable());LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-2,-2);mp.leftMargin=dp(8);preview.addView(mine,mp);sizeCard.addView(preview);
+459-        LinearLayout appearance=settingsCard();LinearLayout wall=simpleSettingRow(appearance,"▧  Изменить обои","Фон всех личных чатов",valueText("›"));wall.setOnClickListener(v->showWallpaperSettings());LinearLayout name=simpleSettingRow(appearance,"❖  Изменить цвет имени","Цвет имени и ответов",valueText("›"));name.setOnClickListener(v->showNameColorSettings());
+--
+576-        Switch messages=settingSwitch("Уведомления о сообщениях","Показывать уведомления о новых сообщениях.",prefs.getBoolean("notify_messages",true));
+577-        Switch calls=settingSwitch("Уведомления о звонках","Показывать входящие аудио- и видеозвонки.",prefs.getBoolean("notify_calls",true));
+578-        Switch updates=settingSwitch("Уведомления об обновлениях","Сообщать, когда доступна новая версия Muwahid.",prefs.getBoolean("notify_updates",true));
+579-        messages.setOnCheckedChangeListener((b,on)->{prefs.edit().putBoolean("notify_messages",on).apply();maybeStartNotifications();});
+580-        calls.setOnCheckedChangeListener((b,on)->{prefs.edit().putBoolean("notify_calls",on).apply();maybeStartNotifications();});
+581:        updates.setOnCheckedChangeListener((b,on)->{prefs.edit().putBoolean("notify_updates",on).apply();if(on){UpdateCheckJobService.ensureScheduled(this);requestUpdatePermissionIfNeeded();UpdateManager.checkAndNotify(this,true);}maybeStartNotifications();});
+582-        gap(content,14);LinearLayout ringCard=settingsCard();String ringMode=prefs.getString("call_ringtone_mode","default");String ringLabel="silent".equals(ringMode)?"Без звука":"custom".equals(ringMode)?prefs.getString("call_ringtone_name","Своя мелодия"):"Системная мелодия";LinearLayout ringRow=simpleSettingRow(ringCard,"Мелодия звонка","Можно выбрать любую музыку с телефона",valueText(ringLabel));ringRow.setOnClickListener(v->chooseCallRingtone());
+583-        gap(content,10);note(content,"Автопроверка при открытии Muwahid, во время использования и примерно раз в 15 минут в фоне. Android может задерживать фоновые проверки. Для системного уведомления разрешите уведомления Muwahid.");
+584:        gap(content,14);Button checkUpdate=button("Проверить обновления");content.addView(checkUpdate,new LinearLayout.LayoutParams(-1,dp(54)));checkUpdate.setOnClickListener(v->{UpdateManager.checkAndNotify(this,true);Toast.makeText(this,"Проверяем обновления…",Toast.LENGTH_SHORT).show();});
+585-        gap(content,18);Button system=button("Системные настройки уведомлений");content.addView(system,new LinearLayout.LayoutParams(-1,dp(54)));system.setOnClickListener(v->{
+586-            try{Intent i=new Intent("android.settings.APP_NOTIFICATION_SETTINGS");i.putExtra("android.provider.extra.APP_PACKAGE",getPackageName());startActivity(i);}catch(Exception e){notice("Не удалось открыть системные настройки уведомлений.");}
+587-        });
+588-    }
+589-    private void chooseCallRingtone(){
+--
+1570-        final String[] emojis=values.toArray(new String[0]);
+1571-        LinearLayout shell=vertical();shell.setPadding(dp(10),dp(6),dp(10),dp(8));shell.setBackgroundColor(panel);
+1572-        TextView title=label("Эмодзи",18,text);bold(title);title.setPadding(dp(6),dp(4),dp(6),dp(10));shell.addView(title);
+1573-        ScrollView scroll=new ScrollView(this);GridLayout grid=new GridLayout(this);grid.setColumnCount(6);grid.setPadding(dp(2),dp(2),dp(2),dp(10));scroll.addView(grid);shell.addView(scroll,new LinearLayout.LayoutParams(-1,dp(310)));
+1574-        AlertDialog dialog=new AlertDialog.Builder(this).setView(shell).setNegativeButton("Закрыть",null).setNeutralButton("Стикеры",(d,w)->showStickerPicker()).create();
+1575:        for(String emoji:emojis){TextView cell=label(emoji,29,text);cell.setGravity(Gravity.CENTER);cell.setBackground(shape(Color.TRANSPARENT,14));GridLayout.LayoutParams gp=new GridLayout.LayoutParams();gp.width=0;gp.height=dp(52);gp.columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f);gp.setMargins(dp(2),dp(2),dp(2),dp(2));grid.addView(cell,gp);cell.setOnClickListener(v->{if(composer==null)return;int start=Math.max(composer.getSelectionStart(),0);composer.getText().insert(start,emoji);dialog.dismiss();composer.requestFocus();});}
+1576-        dialog.setOnShowListener(x->{Window w=dialog.getWindow();if(w!=null){w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));w.setDimAmount(.35f);w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);}});
+1577-        dialog.show();
+1578-    }
+1579-    private void toggleVoiceRecording(){if(voiceRecording)stopVoiceRecording(true);else ensureVoicePermission();}
+1580-    private void ensureVoicePermission(){
