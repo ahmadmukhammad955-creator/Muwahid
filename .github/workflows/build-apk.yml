@@ -25,8 +25,8 @@ jobs:
     env:
       PROJECT_ZIP: Muwahid_0.13.37_PROFILE_QR.zip
       BUNDLE_ZIP: Muwahid_0.13.37_PROFILE_QR.zip
-      EXPECTED_VERSION_NAME: '0.13.41'
-      EXPECTED_VERSION_CODE: '76'
+      EXPECTED_VERSION_NAME: '0.13.42'
+      EXPECTED_VERSION_CODE: '77'
 
     steps:
       - uses: actions/checkout@v4
@@ -144,10 +144,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          previous="$RUNNER_TEMP/Muwahid-0.13.40.apk"
+          previous="$RUNNER_TEMP/Muwahid-0.13.41.apk"
           curl --fail --location --silent --show-error --retry 3 --max-time 90 \
-            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v0.13.40/Muwahid-0.13.40.apk" -o "$previous"
-          echo "3bba1bc58690ba594cc5b3c6b2fbe5a26ab20950d9bf75d96aa5ef2d53ea2534  $previous" | sha256sum -c
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v0.13.41/Muwahid-0.13.41.apk" -o "$previous"
+          echo "db0d6b752506d0c13fc014a2a922a6249451f4919dae13d77d57f4fbcf0d88fc  $previous" | sha256sum -c
           apksigner="$ANDROID_HOME/build-tools/34.0.0/apksigner"
           if [ ! -x "$apksigner" ]; then
             sdkmanager "build-tools;34.0.0"
@@ -183,7 +183,7 @@ jobs:
             # The emulator runner executes each script line in a separate shell.
             # Keep shell conditionals on ONE line to prevent "expecting fi" errors.
             adb wait-for-device
-            if [ "${MUWAHID_STABLE_SIGNING:-false}" = true ]; then adb install "$RUNNER_TEMP/Muwahid-0.13.40.apk" && adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk && adb shell am instrument -w -e phase seed com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > upgrade-seed.txt && grep -F UPGRADE_SEED_OK upgrade-seed.txt && adb install -r Muwahid/app/build/outputs/apk/release/app-release.apk && adb shell dumpsys package com.muwahid.app | grep -F "versionCode=${EXPECTED_VERSION_CODE} " && adb shell am instrument -w -e phase verify com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > upgrade-result.txt && grep -F UPGRADE_DATA_OK upgrade-result.txt && adb uninstall com.muwahid.app; fi
+            if [ "${MUWAHID_STABLE_SIGNING:-false}" = true ]; then adb install "$RUNNER_TEMP/Muwahid-0.13.41.apk" && adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk && adb shell am instrument -w -e phase seed com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > upgrade-seed.txt && grep -F UPGRADE_SEED_OK upgrade-seed.txt && adb install -r Muwahid/app/build/outputs/apk/release/app-release.apk && adb shell dumpsys package com.muwahid.app | grep -F "versionCode=${EXPECTED_VERSION_CODE} " && adb shell am instrument -w -e phase verify com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > upgrade-result.txt && grep -F UPGRADE_DATA_OK upgrade-result.txt && adb uninstall com.muwahid.app; fi
             adb install -r Muwahid/app/build/outputs/apk/debug/app-debug.apk
             adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > smoke-result.txt
@@ -244,7 +244,7 @@ jobs:
           cp "$APK" "$RELEASE_APK"
           SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
           TAG="v${EXPECTED_VERSION_NAME}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Encrypt LIVE chat, photos, videos, backgrounds and PDFs for verified participants. Preserve private sticker imports and verify data retention on Android updates."
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Encrypted contact stories, private archive, profile, reactions and E2EE replies. Preserves existing chats and Android sessions."
           gh release upload "$TAG" "$RELEASE_APK"
           mkdir -p updates
           jq -n \
@@ -252,7 +252,7 @@ jobs:
             --arg versionName "$EXPECTED_VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Шифрование чата LIVE, фото, видео, фонов и PDF для участников с проверенными ключами. Сохранены личные стикеры и данные при обновлении." \
+            --arg notes "Истории контактов, личный архив через 24 часа, реакции, ответы в защищённом чате и профиль. Сохраняются прежние сообщения и данные приложения." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
           # Keep metadata from THIS APK, but update from the latest remote main.
           cp updates/latest.json "$RUNNER_TEMP/muwahid-latest.json"
