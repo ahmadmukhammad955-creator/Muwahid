@@ -5,6 +5,8 @@ declare
   chat public.mw_chats%rowtype;
   outside_user uuid;
   attachment_owner uuid;
+  attachment_recipient uuid;
+  recipient_session uuid;
   delete_filter text;
   deleted_allowed boolean;
 begin
@@ -13,6 +15,11 @@ begin
   select id into strict outside_user from auth.users where id not in (chat.member_a,chat.member_b) limit 1;
   select owner_id::uuid into attachment_owner from storage.objects
     where bucket_id='mw-media' and (storage.foldername(name))[1]=chat.id::text and owner_id is not null limit 1;
+  if attachment_owner in (chat.member_a,chat.member_b) then
+    attachment_recipient := case when attachment_owner=chat.member_a then chat.member_b else chat.member_a end;
+    select s.id into strict recipient_session from auth.sessions s
+      where s.user_id=attachment_recipient and (s.not_after is null or s.not_after>now()) limit 1;
+  end if;
   if not has_function_privilege('authenticated','public.mw_call_ice(uuid,jsonb)','execute') then
     raise exception 'Existing app cannot invoke call signaling';
   end if;
@@ -30,7 +37,8 @@ begin
   end if;
 
   if attachment_owner in (chat.member_a,chat.member_b) then
-    perform set_config('request.jwt.claims',jsonb_build_object('sub',case when attachment_owner=chat.member_a then chat.member_b else chat.member_a end,'aal','aal2','role','authenticated')::text,true);
+    perform set_config('request.jwt.claims',jsonb_build_object('sub',attachment_recipient,
+      'session_id',recipient_session,'aal','aal2','role','authenticated')::text,true);
     if not exists (select 1 from storage.objects
        where bucket_id='mw-media' and (storage.foldername(name))[1]=chat.id::text and owner_id=attachment_owner::text) then
       raise exception 'Recipient lost read access to attachment';
