@@ -36,6 +36,20 @@ public final class StoriesActivity extends Activity {
     private boolean viewing=false,muted=false,paused=false;
     private long imageEndsAt=0,imageRemaining=7500;
     private Runnable imageAdvance;
+    private final Runnable progressTicker=new Runnable(){
+        @Override public void run(){
+            if(!viewing||storyProgress==null||destroyed)return;
+            if(videoPlayer!=null){
+                try{int total=videoPlayer.getDuration();
+                    if(total>0)storyProgress.setProgress(Math.min(1000,(int)(1000L*videoPlayer.getCurrentPosition()/total)));
+                }catch(Exception ignored){}
+            }else if(imageEndsAt>0){
+                long remain=paused?imageRemaining:Math.max(0,imageEndsAt-SystemClock.uptimeMillis());
+                storyProgress.setProgress((int)Math.max(0,Math.min(1000,1000*(7500-remain)/7500)));
+            }
+            ui.postDelayed(this,250);
+        }
+    };
     private boolean destroyed=false;
 
     @Override public void onCreate(Bundle state){
@@ -127,7 +141,7 @@ public final class StoriesActivity extends Activity {
                 art.setGravity(Gravity.CENTER);item.addView(art,new LinearLayout.LayoutParams(dp(55),dp(60)));
                 LinearLayout info=vertical();info.setGravity(Gravity.CENTER_VERTICAL);
                 TextView who=text(story.optString("display_name","Контакт"),16,white());who.setTypeface(null,1);info.addView(who);
-                TextView meta=text(("video".equals(story.optString("media_kind"))?"▶ Видео":"▧ Фото")+" · "+story.optString("created_at","").replace("T"," ").replace("Z",""),12,mutedColor());
+                TextView meta=text(("video".equals(story.optString("media_kind"))?"▶ Видео":"▧ Фото")+" · "+(story.optBoolean("visible_on_profile",false)?" · 📌 В профиле":"")+" · "+story.optString("created_at","").replace("T"," ").replace("Z",""),12,mutedColor());
                 info.addView(meta);item.addView(info,new LinearLayout.LayoutParams(0,dp(58),1));
                 TextView go=button("›");item.addView(go);
                 item.setOnClickListener(v->openStory(idx));body.addView(item);
@@ -269,7 +283,7 @@ public final class StoriesActivity extends Activity {
         viewing=true;storyIndex=idx;renderViewer();
     }
     private void renderViewer(){
-        stopPlayback();viewing=true;
+        stopPlayback();viewing=true;paused=false;
         frame=new FrameLayout(this);frame.setBackgroundColor(Color.BLACK);setContentView(frame);
         mediaLayer=new FrameLayout(this);frame.addView(mediaLayer,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout top=horizontal();top.setPadding(dp(9),dp(10),dp(9),dp(5));
@@ -303,7 +317,7 @@ public final class StoriesActivity extends Activity {
         final String storyId=item.optString("id","");
         backgroundWork(()->{
             byte[] raw=readDecryptedMedia(item);
-            ui.post(()->{if(destroyed||!viewing||!storyId.equals(feed.optJSONObject(storyIndex).optString("id")))return;
+            ui.post(()->{if(destroyed||!viewing||(storyIndex>=feed.length()||feed.optJSONObject(storyIndex)==null||!storyId.equals(feed.optJSONObject(storyIndex).optString("id"))))return;
                 if(decryptedMedia!=null)Arrays.fill(decryptedMedia,(byte)0);
                 decryptedMedia=raw;displayMedia(item,raw);
             });
@@ -359,7 +373,7 @@ public final class StoriesActivity extends Activity {
             });
             videoPlayer.setOnPreparedListener(mp->{mp.setVolume(muted?0f:1f,muted?0f:1f);mp.start();tickProgress();});
             videoPlayer.setOnCompletionListener(mp->next());
-            videoPlayer.setOnErrorListener((mp,what,extra)->{viewerStatus.setText("Не удалось воспроизвести видео");return true;});
+            videoPlayer.setOnErrorListener((mp,what,extra)->{viewerStatus.setText("Не удалось воспроизвести видео");if(viewerStatus.getParent()==null)mediaLayer.addView(viewerStatus,new FrameLayout.LayoutParams(-1,-1));return true;});
             surface.getHolder().addCallback(new android.view.SurfaceHolder.Callback(){
                 public void surfaceCreated(android.view.SurfaceHolder h){if(videoPlayer!=null)videoPlayer.setDisplay(h);}
                 public void surfaceChanged(android.view.SurfaceHolder h,int format,int w,int height){}
@@ -386,14 +400,8 @@ public final class StoriesActivity extends Activity {
         });
     }
     private void tickProgress(){
-        if(!viewing||storyProgress==null)return;
-        if(videoPlayer!=null){
-            try{int duration=videoPlayer.getDuration();if(duration>0)storyProgress.setProgress(Math.min(1000,(int)(1000L*videoPlayer.getCurrentPosition()/duration)));}catch(Exception ignored){}
-        }else if(imageEndsAt>0){
-            long remain=paused?imageRemaining:Math.max(0,imageEndsAt-SystemClock.uptimeMillis());
-            storyProgress.setProgress((int)Math.max(0,Math.min(1000,1000*(7500-remain)/7500)));
-        }
-        if(viewing)ui.postDelayed(()->{if(viewing)tickProgress();},250);
+        ui.removeCallbacks(progressTicker);
+        ui.post(progressTicker);
     }
     private void pauseStory(){
         if(paused)return;paused=true;
@@ -408,6 +416,7 @@ public final class StoriesActivity extends Activity {
     private void next(){if(storyIndex+1<feed.length()){storyIndex++;renderViewer();}else renderFeed();}
     private void previous(){if(storyIndex>0){storyIndex--;renderViewer();}else renderViewer();}
     private void stopPlayback(){
+        ui.removeCallbacks(progressTicker);
         if(imageAdvance!=null)ui.removeCallbacks(imageAdvance);imageAdvance=null;imageEndsAt=0;
         if(videoPlayer!=null){try{videoPlayer.stop();}catch(Exception ignored){}videoPlayer.release();videoPlayer=null;}
         if(decryptedMedia!=null){Arrays.fill(decryptedMedia,(byte)0);decryptedMedia=null;}
@@ -415,11 +424,17 @@ public final class StoriesActivity extends Activity {
     private void storyOptions(){
         JSONObject item=feed.optJSONObject(storyIndex);if(item==null)return;
         boolean own=item.optString("owner_id").equals(api.uid());
-        String[] options=own?new String[]{"Кто просмотрел","Удалить историю"}:new String[]{"Проверить данные автора","Ответить","Поставить реакцию"};
+        String[] options=own?new String[]{"Кто просмотрел",item.optBoolean("visible_on_profile",false)?"Убрать из профиля":"Оставить в профиле","Удалить историю"}:new String[]{"Проверить данные автора","Ответить","Поставить реакцию"};
         new AlertDialog.Builder(this).setTitle("История").setItems(options,(d,n)->{
-            if(own){if(n==0)showStoryViewers(item);else confirmDelete(item);}
+            if(own){if(n==0)showStoryViewers(item);else if(n==1)setPinned(item,!item.optBoolean("visible_on_profile",false));else confirmDelete(item);}
             else{if(n==0){renderFeed();}else if(n==1){replyInput.requestFocus();((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).showSoftInput(replyInput,0);}else chooseReaction();}
         }).show();
+    }
+    private void setPinned(JSONObject story,boolean pinned){
+        backgroundWork(()->{
+            api.rpc("mw_story_set_profile",new JSONObject().put("p_story",story.getString("id")).put("p_visible",pinned));
+            ui.post(()->{if(!destroyed){Toast.makeText(this,pinned?"История сохранена в профиле":"История убрана из профиля",Toast.LENGTH_SHORT).show();reload();}});
+        });
     }
     private void showStoryViewers(JSONObject story){
         backgroundWork(()->{
@@ -469,7 +484,17 @@ public final class StoriesActivity extends Activity {
         JSONObject item=feed.optJSONObject(storyIndex);if(item==null)return;
         if(api.uid().equals(item.optString("owner_id"))||!item.optBoolean("allow_reactions",true))return;
         String[] emoji={"❤️","👍","👎","🔥","🥰","👏","😁","🤔","😮","😢","🎉","😍","😂","😎","😱","🙏","💯","💋","✨","🤩","💐","🥳","😇","👀"};
-        new AlertDialog.Builder(this).setTitle("Реакция на историю").setItems(emoji,(d,w)->sendReaction(item,emoji[w])).show();
+        android.widget.GridLayout grid=new android.widget.GridLayout(this);grid.setColumnCount(6);
+        grid.setPadding(dp(10),dp(10),dp(10),dp(10));
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Реакция на историю")
+            .setView(grid).setNegativeButton("Закрыть",null).create();
+        for(String e:emoji){
+            TextView cell=text(e,26,white());cell.setGravity(Gravity.CENTER);
+            android.widget.GridLayout.LayoutParams p=new android.widget.GridLayout.LayoutParams();
+            p.width=dp(49);p.height=dp(49);p.setMargins(dp(1),dp(1),dp(1),dp(1));
+            grid.addView(cell,p);cell.setOnClickListener(v->{dialog.dismiss();sendReaction(item,e);});
+        }
+        dialog.show();
     }
     private void sendReaction(JSONObject story,String emoji){
         backgroundWork(()->{
