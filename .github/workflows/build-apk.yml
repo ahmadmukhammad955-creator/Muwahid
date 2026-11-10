@@ -1,4 +1,4 @@
-name: Build Muwahid APK 0.13.38
+name: Build Muwahid APK 0.13.39
 
 on:
   workflow_dispatch:
@@ -25,8 +25,8 @@ jobs:
     env:
       PROJECT_ZIP: Muwahid_0.13.37_PROFILE_QR.zip
       BUNDLE_ZIP: Muwahid_0.13.37_PROFILE_QR.zip
-      EXPECTED_VERSION_NAME: '0.13.38'
-      EXPECTED_VERSION_CODE: '73'
+      EXPECTED_VERSION_NAME: '0.13.39'
+      EXPECTED_VERSION_CODE: '74'
 
     steps:
       - uses: actions/checkout@v4
@@ -86,6 +86,7 @@ jobs:
           python3 tests/check_call_camera_runtime.py
           patch --dry-run --batch --forward --fuzz=0 -p1 < "$GITHUB_WORKSPACE/android/family-security.patch"
           patch --batch --forward --fuzz=0 -p1 < "$GITHUB_WORKSPACE/android/family-security.patch"
+          python3 "$GITHUB_WORKSPACE/android/remove-cat-stickers.py"
           VERSION_NAME="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" app/build.gradle | head -1)"
           VERSION_CODE="$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' app/build.gradle | head -1)"
           test "$VERSION_NAME" = "$EXPECTED_VERSION_NAME"
@@ -135,10 +136,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          previous="$RUNNER_TEMP/Muwahid-0.13.37.apk"
+          previous="$RUNNER_TEMP/Muwahid-0.13.38.apk"
           curl --fail --location --silent --show-error --retry 3 --max-time 90 \
-            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v0.13.37/Muwahid-0.13.37.apk" -o "$previous"
-          echo "54efec58bcd0cb3e3d9661dc48731513a8d57148adc33b17d48fc15a336792e1  $previous" | sha256sum -c
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v0.13.38/Muwahid-0.13.38.apk" -o "$previous"
+          echo "c08f02373dd61e979a8950f7acb83a3df78d4a7a5cab62e8dfd55473d11bafc0  $previous" | sha256sum -c
           apksigner="$ANDROID_HOME/build-tools/34.0.0/apksigner"
           if [ ! -x "$apksigner" ]; then
             sdkmanager "build-tools;34.0.0"
@@ -187,7 +188,7 @@ jobs:
         if: ${{ always() && env.MUWAHID_STABLE_SIGNING != 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.38-debug-apk
+          name: Muwahid-0.13.39-debug-apk
           path: Muwahid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: warn
 
@@ -195,7 +196,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.38
+          name: Muwahid-APK-0.13.39
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -203,7 +204,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.38-device-check
+          name: Muwahid-0.13.39-device-check
           path: |
             screenshots/
             smoke-result.txt
@@ -211,7 +212,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Publish signed update
-        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.publish == true) || (github.event_name == 'push' && github.event.head_commit.message == 'Publish signed Muwahid 0.13.38')) && github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
+        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.publish == true) || (github.event_name == 'push' && github.event.head_commit.message == 'Publish signed Muwahid 0.13.39')) && github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -230,7 +231,7 @@ jobs:
           cp "$APK" "$RELEASE_APK"
           SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
           TAG="v${EXPECTED_VERSION_NAME}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Family invitations, session revocation, private messaging protection and signed update verification."
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Retire Muva Cat sticker pack for all updated clients; preserve private sticker collections."
           gh release upload "$TAG" "$RELEASE_APK" --clobber
           mkdir -p updates
           jq -n \
@@ -238,7 +239,7 @@ jobs:
             --arg versionName "$EXPECTED_VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Семейные приглашения, управление сеансами, защита личной переписки и проверка подписи обновлений." \
+            --arg notes "Удалён встроенный набор «Кот Мува» из каталога и переписки, сохранены личные стикеры и защита сообщений." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
           # Keep metadata from THIS APK, but update from the latest remote main.
           cp updates/latest.json "$RUNNER_TEMP/muwahid-latest.json"
