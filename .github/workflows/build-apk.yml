@@ -130,6 +130,24 @@ jobs:
           MUWAHID_FCM_PROJECT_ID: ${{ secrets.MUWAHID_FCM_PROJECT_ID }}
         run: cd Muwahid && gradle --no-daemon assembleRelease
 
+      - name: Verify release signing against the public APK
+        if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous="$RUNNER_TEMP/Muwahid-0.13.37.apk"
+          curl --fail --location --silent --show-error --retry 3 --max-time 90 \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v0.13.37/Muwahid-0.13.37.apk" -o "$previous"
+          echo "54efec58bcd0cb3e3d9661dc48731513a8d57148adc33b17d48fc15a336792e1  $previous" | sha256sum -c
+          apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          test -x "$apksigner"
+          certificate() {
+            "$apksigner" verify --print-certs "$1" | awk '/^Signer #[0-9]+ certificate SHA-256 digest:/{print $NF}' | sort
+          }
+          previous_certificate="$(certificate "$previous")"
+          test -n "$previous_certificate"
+          test "$(certificate Muwahid/app/build/outputs/apk/release/app-release.apk)" = "$previous_certificate"
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -145,6 +163,11 @@ jobs:
           disable-animations: 'true'
           script: |
             set -eu
+            if [ "${MUWAHID_STABLE_SIGNING:-false}" = true ]; then
+              adb install "$RUNNER_TEMP/Muwahid-0.13.37.apk"
+              adb install -r Muwahid/app/build/outputs/apk/release/app-release.apk
+              adb shell dumpsys package com.muwahid.app | grep -F "versionCode=${EXPECTED_VERSION_CODE} "
+            fi
             adb install -r Muwahid/app/build/outputs/apk/debug/app-debug.apk
             adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > smoke-result.txt
