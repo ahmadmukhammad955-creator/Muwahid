@@ -1,0 +1,475 @@
+diff --git a/app/build.gradle b/app/build.gradle
+index cdd378f..ee6b53d 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -63,6 +63,7 @@ android {
+ }
+ 
+ dependencies {
++    implementation 'com.google.crypto.tink:tink-android:1.24.0'
+     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
+     implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+     implementation 'androidx.core:core:1.15.0'
+diff --git a/app/src/androidTest/java/com/muwahid/app/LiveCryptoChecks.java b/app/src/androidTest/java/com/muwahid/app/LiveCryptoChecks.java
+new file mode 100644
+index 0000000..a0a44e2
+--- /dev/null
++++ b/app/src/androidTest/java/com/muwahid/app/LiveCryptoChecks.java
+@@ -0,0 +1,69 @@
++package com.muwahid.app;
++
++import android.content.Context;
++import java.util.*;
++import org.json.*;
++
++/** Runs real Tink, Android Keystore and existing personal E2EE; transport alone is fake. */
++final class LiveCryptoChecks {
++    interface Failure {void run() throws Exception;}
++    static void denied(Failure action) throws Exception {
++        boolean rejected=false;try{action.run();}catch(Exception expected){rejected=true;}
++        if(!rejected)throw new AssertionError("Invalid LIVE crypto operation was accepted");
++    }
++    static void run(Context context) throws Exception {
++        CryptoBox peers=new CryptoBox(context);String room=UUID.randomUUID().toString();
++        TreeMap<String,String> keys=new TreeMap<>();ArrayList<String> users=new ArrayList<>();
++        for(int i=0;i<8;i++){String id=UUID.randomUUID().toString();users.add(id);keys.put(id,peers.publicKey(id));}
++        Map<String,String> chats=new HashMap<>();
++        for(String a:users)for(String b:users)if(a.compareTo(b)<0)chats.put(a+":"+b,UUID.randomUUID().toString());
++        for(String a:users)for(String b:users)if(!a.equals(b))peers.verifyPeer(a,chat(chats,a,b),keys.get(b));
++        class Transport implements LiveCrypto.Transport {
++            final String self;Transport(String self){this.self=self;}public String uid(){return self;}
++            public Object rpc(String fn,JSONObject args) throws Exception {
++                if(fn.equals("mw_e2ee_set_key"))return null;
++                if(fn.equals("mw_room_secure_recipients")){
++                    JSONArray result=new JSONArray();for(String id:keys.keySet())result.put(new JSONObject().put("id",id)
++                        .put("chat_id",id.equals(self)?JSONObject.NULL:chat(chats,self,id)).put("public_key",keys.get(id)));return result;
++                }
++                if(fn.equals("mw_chat_list")){
++                    JSONArray result=new JSONArray();for(String id:users)if(!id.equals(self))result.put(new JSONObject().put("id",chat(chats,self,id)).put("person_id",id));return result;
++                }
++                if(fn.equals("mw_e2ee_peer_key")){for(String id:users)if(!id.equals(self)&&chat(chats,self,id).equals(args.getString("p_chat")))return keys.get(id);}
++                throw new AssertionError("Unexpected RPC "+fn);
++            }
++        }
++        String alice=users.get(0),bob=users.get(1);LiveCrypto sender=new LiveCrypto(context,new Transport(alice));
++        LiveCrypto.Item item=sender.prepare(room);String path=room+"/e2ee/"+UUID.randomUUID()+".bin";
++        byte[] photo="Synthetic private photo and audio bytes".getBytes("UTF-8");
++        LiveCrypto.EncryptedFile file=item.encryptFile(photo,path);
++        JSONObject media=new JSONObject().put("path",path).put("name","Private test.jpg").put("mime","image/jpeg");
++        JSONObject msg=new JSONObject().put("id",1).put("sender_id",alice).put("kind","image")
++            .put("body",item.encryptMessage("image","Private LIVE text",media)).put("media",item.envelope);
++        if(msg.toString().contains("Private LIVE text")||msg.toString().contains("Private test.jpg"))throw new AssertionError("Cleartext metadata escaped");
++        for(String user:users){LiveCrypto receiver=new LiveCrypto(context,new Transport(user));
++            if(!"Private LIVE text".equals(receiver.openMessage(room,msg).getString("body")))throw new AssertionError("Eight-person message failed");
++            if(!Arrays.equals(photo,receiver.openFile(room,path,msg,file.bytes())))throw new AssertionError("Eight-person file failed");
++        }
++        LiveCrypto receiver=new LiveCrypto(context,new Transport(bob));
++        byte[] damaged=file.bytes().clone();damaged[damaged.length-1]^=1;
++        denied(()->receiver.openFile(room,path,msg,damaged));
++        denied(()->receiver.openFile(room,path+"x",msg,file.bytes()));
++        denied(()->receiver.openMessage(UUID.randomUUID().toString(),msg));
++        JSONObject bad=new JSONObject(msg.toString());bad.put("sender_id",bob);denied(()->receiver.openMessage(room,bad));
++        JSONObject forged=new JSONObject(msg.toString());forged.getJSONObject("media").getJSONObject("keys").remove(users.get(7));denied(()->receiver.openMessage(room,forged));
++        JSONObject broken=new JSONObject(msg.toString());String ciphertext=broken.getString("body");broken.put("body",ciphertext.substring(0,10)+(ciphertext.charAt(10)=='A'?'B':'A')+ciphertext.substring(11));denied(()->receiver.openMessage(room,broken));
++        LiveCrypto restarted=new LiveCrypto(context,new Transport(alice));
++        if(!"Private LIVE text".equals(restarted.openMessage(room,msg).getString("body")))throw new AssertionError("Sender restart lost key");
++        String original=keys.get(bob);keys.put(bob,peers.publicKey(UUID.randomUUID().toString()));
++        denied(()->sender.prepare(room));keys.put(bob,original);
++        keys.remove(bob);LiveCrypto.Item later=sender.prepare(room);
++        JSONObject future=new JSONObject().put("sender_id",alice).put("kind","text").put("body",later.encryptMessage("text","After removal",null)).put("media",later.envelope);
++        denied(()->receiver.openMessage(room,future));
++        // A newly joined member cannot decrypt items sent before admission.
++        String newcomer=UUID.randomUUID().toString();keys.put(newcomer,peers.publicKey(newcomer));
++        LiveCrypto newcomerClient=new LiveCrypto(context,new Transport(newcomer));denied(()->newcomerClient.openMessage(room,msg));
++        System.out.println("LIVE_CRYPTO_OK: eight recipients, restart, tamper, wrong room/path/sender, changed key, removal, late join");
++    }
++    static String chat(Map<String,String> chats,String a,String b){return chats.get(a.compareTo(b)<0?a+":"+b:b+":"+a);}
++}
+diff --git a/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java b/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java
+index c3dc341..db1219a 100644
+--- a/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java
++++ b/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java
+@@ -235,6 +235,7 @@ public class SmokeInstrumentation extends Instrumentation {
+             }
+             checkProfileQr();
+             checkPrivateCommunication();
++            LiveCryptoChecks.run(getTargetContext());
+             capture("welcome.png");
+             checkPhoneEntry();
+ 
+diff --git a/app/src/main/java/com/muwahid/app/Api.java b/app/src/main/java/com/muwahid/app/Api.java
+index 1e7fab9..8ddbef4 100644
+--- a/app/src/main/java/com/muwahid/app/Api.java
++++ b/app/src/main/java/com/muwahid/app/Api.java
+@@ -231,7 +231,7 @@ final class Api {
+         HttpsURLConnection c=(HttpsURLConnection)new URL(BuildConfig.SERVER_URL+"/storage/v1/object/mw-media/"+encoded).openConnection();
+         c.setConnectTimeout(20000);c.setReadTimeout(30000);c.setInstanceFollowRedirects(false);c.setRequestMethod("POST");
+         c.setRequestProperty("apikey",BuildConfig.PUBLIC_KEY);c.setRequestProperty("Authorization","Bearer "+session.optString("access_token"));
+-        c.setRequestProperty("Content-Type","application/octet-stream");c.setRequestProperty("x-upsert","false");c.setDoOutput(true);
++        c.setRequestProperty("Content-Type","application/octet-stream");c.setRequestProperty("x-upsert","false");c.setRequestProperty("Cache-Control","max-age=0");c.setDoOutput(true);
+         try{try(OutputStream out=c.getOutputStream()){data.writeTo(out);}int status=c.getResponseCode();if(status>=300){String msg=readError(c);if(status==401){refresh();uploadMedia(objectPath,data);return;}if(status==404)throw new Exception("Хранилище медиа на сервере ещё не создано. Примените серверное обновление 0.7.");throw new Exception("Не удалось загрузить файл ("+status+")"+(msg.isEmpty()?"":". "+msg));}}finally{c.disconnect();}
+     }
+ 
+@@ -254,16 +254,16 @@ final class Api {
+         return downloadBucketObject("mw-stickers",objectPath);
+     }
+ 
+-    synchronized void uploadRoomMedia(String objectPath, byte[] data) throws Exception {
+-        uploadBucketObject("mw-room-media",objectPath,data);
++    synchronized void uploadRoomMedia(String objectPath, LiveCrypto.EncryptedFile data) throws Exception {
++        uploadBucketObject("mw-room-media",objectPath,data.bytes());
+     }
+ 
+     synchronized byte[] downloadRoomMedia(String objectPath) throws Exception {
+         return downloadBucketObject("mw-room-media",objectPath);
+     }
+ 
+-    synchronized void uploadRoomBook(String objectPath, byte[] data) throws Exception {
+-        uploadBucketObject("mw-room-books",objectPath,data);
++    synchronized void uploadRoomBook(String objectPath, LiveCrypto.EncryptedFile data) throws Exception {
++        uploadBucketObject("mw-room-books",objectPath,data.bytes());
+     }
+ 
+     synchronized byte[] downloadRoomBook(String objectPath) throws Exception {
+@@ -276,7 +276,7 @@ final class Api {
+         HttpsURLConnection c=(HttpsURLConnection)new URL(BuildConfig.SERVER_URL+"/storage/v1/object/"+bucket+"/"+encoded).openConnection();
+         c.setConnectTimeout(20000);c.setReadTimeout(30000);c.setInstanceFollowRedirects(false);c.setRequestMethod("POST");
+         c.setRequestProperty("apikey",BuildConfig.PUBLIC_KEY);c.setRequestProperty("Authorization","Bearer "+session.optString("access_token"));
+-        c.setRequestProperty("Content-Type","application/octet-stream");c.setRequestProperty("x-upsert","false");c.setDoOutput(true);
++        c.setRequestProperty("Content-Type","application/octet-stream");c.setRequestProperty("x-upsert","false");c.setRequestProperty("Cache-Control","max-age=0");c.setDoOutput(true);
+         try{try(OutputStream out=c.getOutputStream()){out.write(data);}int status=c.getResponseCode();if(status>=300){String msg=readError(c);if(status==401){refresh();uploadBucketObject(bucket,objectPath,data);return;}throw new Exception("Не удалось загрузить файл ("+status+")"+(msg.isEmpty()?"":". "+msg));}}finally{c.disconnect();}
+     }
+ 
+@@ -285,7 +285,7 @@ final class Api {
+         HttpsURLConnection c=(HttpsURLConnection)new URL(BuildConfig.SERVER_URL+"/storage/v1/object/authenticated/"+bucket+"/"+encodeObjectPath(objectPath)).openConnection();
+         c.setConnectTimeout(20000);c.setReadTimeout(30000);c.setInstanceFollowRedirects(false);c.setRequestMethod("GET");
+         c.setRequestProperty("apikey",BuildConfig.PUBLIC_KEY);c.setRequestProperty("Authorization","Bearer "+session.optString("access_token"));
+-        try{int status=c.getResponseCode();if(status==401){c.disconnect();refresh();return downloadBucketObject(bucket,objectPath);}if(status>=300)throw new Exception("Не удалось скачать файл ("+status+")");ByteArrayOutputStream out=new ByteArrayOutputStream();try(InputStream in=c.getInputStream()){byte[] buf=new byte[16384];int n,total=0;while((n=in.read(buf))!=-1){total+=n;if(total>27000000)throw new IOException("Файл слишком большой");out.write(buf,0,n);}}return out.toByteArray();}finally{c.disconnect();}
++        try{int status=c.getResponseCode();if(status==401){c.disconnect();refresh();return downloadBucketObject(bucket,objectPath);}if(status>=300)throw new Exception("Не удалось скачать файл ("+status+")");ByteArrayOutputStream out=new ByteArrayOutputStream();try(InputStream in=c.getInputStream()){byte[] buf=new byte[16384];int n,total=0;while((n=in.read(buf))!=-1){total+=n;if(total>("mw-room-books".equals(bucket)?51*1024*1024:27000000))throw new IOException("Файл слишком большой");out.write(buf,0,n);}}return out.toByteArray();}finally{c.disconnect();}
+     }
+ 
+     private String encodeObjectPath(String path) throws Exception {
+diff --git a/app/src/main/java/com/muwahid/app/LiveCrypto.java b/app/src/main/java/com/muwahid/app/LiveCrypto.java
+new file mode 100644
+index 0000000..0aa7bc7
+--- /dev/null
++++ b/app/src/main/java/com/muwahid/app/LiveCrypto.java
+@@ -0,0 +1,127 @@
++package com.muwahid.app;
++
++import android.content.Context;
++import android.util.Base64;
++import com.google.crypto.tink.Aead;
++import com.google.crypto.tink.KeysetHandle;
++import com.google.crypto.tink.InsecureSecretKeyAccess;
++import com.google.crypto.tink.TinkProtoKeysetFormat;
++import com.google.crypto.tink.aead.AeadConfig;
++import com.google.crypto.tink.aead.AeadKeyTemplates;
++import java.nio.charset.StandardCharsets;
++import java.util.*;
++import org.json.*;
++
++/** Per-item Tink AEAD. Keys travel only inside verified personal E2EE envelopes.
++ * No shared room key survives a membership change. This is not an MLS/ratchet protocol.
++ */
++final class LiveCrypto {
++    interface Transport {String uid(); Object rpc(String function,JSONObject args) throws Exception;}
++    private final Transport api;
++    private final CryptoBox peers;
++    private final Context context;
++    LiveCrypto(Context context, Api api) throws Exception {
++        this(context,new Transport(){public String uid(){return api.uid();}public Object rpc(String fn,JSONObject args) throws Exception{return api.rpc(fn,args);}});
++    }
++    LiveCrypto(Context context,Transport api) throws Exception {
++        this.context=context;this.api=api;this.peers=new CryptoBox(context);AeadConfig.register();
++    }
++    static final class EncryptedFile {
++        private final byte[] bytes;
++        private EncryptedFile(byte[] bytes){this.bytes=bytes;}
++        byte[] bytes(){return bytes.clone();}
++    }
++    static final class Item {
++        final JSONObject envelope;
++        final JSONArray recipients;
++        final Aead aead;
++        final String scope;
++        Item(JSONObject envelope,JSONArray recipients,Aead aead,String scope){
++            this.envelope=envelope;this.recipients=recipients;this.aead=aead;this.scope=scope;
++        }
++        EncryptedFile encryptFile(byte[] raw,String path) throws Exception {
++            if(raw==null||raw.length==0)throw new SecurityException("Пустой файл");
++            return new EncryptedFile(aead.encrypt(raw,utf8(scope+":file:"+path)));
++        }
++        String encryptMessage(String kind,String body,JSONObject media) throws Exception {
++            JSONObject clear=new JSONObject().put("kind",kind).put("body",body).put("media",media==null?JSONObject.NULL:media);
++            return "mwl1:"+b64(aead.encrypt(utf8(clear.toString()),utf8(scope+":message")));
++        }
++    }
++    Item prepare(String room) throws Exception {
++        String self=api.uid();
++        api.rpc("mw_e2ee_set_key",new JSONObject().put("p_public_key",peers.publicKey(self)));
++        JSONArray members=(JSONArray)api.rpc("mw_room_secure_recipients",new JSONObject().put("p_room",room));
++        if(members.length()<1||members.length()>12)throw new SecurityException("Некорректный состав эфира");
++        // Verify everyone before making a file upload or exporting a content key.
++        boolean own=false;
++        for(int i=0;i<members.length();i++){
++            JSONObject m=members.getJSONObject(i);
++            if(self.equals(m.getString("id"))){own=true;continue;}
++            if(m.isNull("chat_id")||m.isNull("public_key"))throw new SecurityException("Откройте личный чат с каждым участником и сверьте код безопасности");
++            peers.requireVerifiedPeer(self,m.getString("chat_id"),m.getString("public_key"));
++        }
++        if(!own)throw new SecurityException("Нет доступа к эфиру");
++        JSONObject env=new JSONObject().put("v",1).put("nonce",UUID.randomUUID().toString());
++        JSONObject keys=new JSONObject();env.put("keys",keys);
++        for(int i=0;i<members.length();i++)keys.put(members.getJSONObject(i).getString("id"),new JSONObject());
++        String scope=scope(room,self,env);
++        KeysetHandle handle=KeysetHandle.generateNew(AeadKeyTemplates.AES256_GCM);
++        byte[] secret=TinkProtoKeysetFormat.serializeKeyset(handle,InsecureSecretKeyAccess.get());
++        try{
++            for(int i=0;i<members.length();i++){
++                JSONObject m=members.getJSONObject(i);String id=m.getString("id");JSONObject wrapped=new JSONObject();
++                if(id.equals(self))wrapped.put("wrapped",b64(selfStore(self).seal(secret,utf8(scope+":self"))));
++                else {
++                    String chat=m.getString("chat_id");
++                    wrapped.put("chat",chat).put("wrapped",peers.encryptCallSignal(self,chat,m.getString("public_key"),scope+":key:"+id,b64(secret)));
++                }
++                keys.put(id,wrapped);
++            }
++        }finally{Arrays.fill(secret,(byte)0);}
++        return new Item(env,members,handle.getPrimitive(Aead.class),scope);
++    }
++    private SecureStore selfStore(String uid){return new SecureStore(context,"live_keys_"+uid);}
++    private static String scope(String room,String sender,JSONObject env) throws Exception {
++        if(env.getInt("v")!=1)throw new SecurityException("Неподдерживаемое шифрование LIVE");
++        String nonce=env.getString("nonce");UUID.fromString(nonce);
++        JSONObject keys=env.getJSONObject("keys");TreeSet<String> ids=new TreeSet<>();
++        for(Iterator<String> it=keys.keys();it.hasNext();) {String id=it.next();UUID.fromString(id);ids.add(id);}
++        if(ids.isEmpty()||ids.size()>12||!ids.contains(sender))throw new SecurityException("Некорректные получатели");
++        return "Muwahid:LIVE:v1:"+room+":"+sender+":"+nonce+":"+android.text.TextUtils.join(",",ids);
++    }
++    private Aead openKey(String room,JSONObject message) throws Exception {
++        String self=api.uid(),sender=message.getString("sender_id");JSONObject env=message.getJSONObject("media");
++        String scope=scope(room,sender,env);JSONObject wrapped=env.getJSONObject("keys").optJSONObject(self);
++        if(wrapped==null)throw new SecurityException("Отправлено до вашего входа в эфир");
++        byte[] secret;
++        if(self.equals(sender))secret=selfStore(self).open(Base64.decode(wrapped.getString("wrapped"),Base64.NO_WRAP),utf8(scope+":self"));
++        else {
++            String chat=wrapped.getString("chat");
++            // Resolve the actual chat partner locally; never trust a sender-supplied chat ID.
++            JSONArray chats=(JSONArray)api.rpc("mw_chat_list",new JSONObject());boolean found=false;
++            for(int i=0;i<chats.length();i++){JSONObject c=chats.getJSONObject(i);if(chat.equals(c.getString("id"))&&sender.equals(c.getString("person_id")))found=true;}
++            if(!found)throw new SecurityException("Не подтверждён отправитель LIVE");
++            Object pub=api.rpc("mw_e2ee_peer_key",new JSONObject().put("p_chat",chat));
++            if(!(pub instanceof String))throw new SecurityException("Ключ отправителя недоступен");
++            secret=Base64.decode(peers.decryptCallSignal(self,chat,(String)pub,scope+":key:"+self,wrapped.getString("wrapped")),Base64.NO_WRAP);
++        }
++        try{return TinkProtoKeysetFormat.parseKeyset(secret,InsecureSecretKeyAccess.get()).getPrimitive(Aead.class);}
++        finally{Arrays.fill(secret,(byte)0);}
++    }
++    JSONObject openMessage(String room,JSONObject message) throws Exception {
++        String body=message.optString("body");
++        if(!body.startsWith("mwl1:"))return message; // Historical data remains readable; new sends never use this format.
++        JSONObject clear=new JSONObject(new String(openKey(room,message).decrypt(Base64.decode(body.substring(5),Base64.NO_WRAP),
++            utf8(scope(room,message.getString("sender_id"),message.getJSONObject("media"))+":message")),StandardCharsets.UTF_8));
++        JSONObject result=new JSONObject(message.toString());result.put("kind",clear.getString("kind")).put("body",clear.getString("body")).put("media",clear.opt("media"));return result;
++    }
++    byte[] openFile(String room,String path,JSONObject message,byte[] bytes) throws Exception {
++        if(!message.optString("body").startsWith("mwl1:"))throw new SecurityException("Файл не защищён шифрованием LIVE");
++        JSONObject clear=openMessage(room,message);
++        if(!path.equals(clear.getJSONObject("media").getString("path")))throw new SecurityException("Файл не соответствует сообщению");
++        return openKey(room,message).decrypt(bytes,utf8(scope(room,message.getString("sender_id"),message.getJSONObject("media"))+":file:"+path));
++    }
++    private static byte[] utf8(String value){return value.getBytes(StandardCharsets.UTF_8);}
++    private static String b64(byte[] value){return Base64.encodeToString(value,Base64.NO_WRAP);}
++}
+diff --git a/app/src/main/java/com/muwahid/app/SecureStore.java b/app/src/main/java/com/muwahid/app/SecureStore.java
+index dbc64a4..c519176 100644
+--- a/app/src/main/java/com/muwahid/app/SecureStore.java
++++ b/app/src/main/java/com/muwahid/app/SecureStore.java
+@@ -12,6 +12,7 @@ import javax.crypto.SecretKey;
+ import javax.crypto.spec.GCMParameterSpec;
+ 
+ final class SecureStore {
++    private static final Object KEY_LOCK=new Object();
+     private final SharedPreferences prefs;
+     private final String keyAlias;
+     SecureStore(Context context) { this(context, "session"); }
+@@ -20,6 +21,7 @@ final class SecureStore {
+         keyAlias = "muwahid." + name;
+     }
+     private SecretKey key() throws Exception {
++        synchronized(KEY_LOCK) {
+         KeyStore store = KeyStore.getInstance("AndroidKeyStore"); store.load(null);
+         if (!store.containsAlias(keyAlias)) {
+             KeyGenerator gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+@@ -28,6 +30,19 @@ final class SecureStore {
+             gen.generateKey();
+         }
+         return (SecretKey) store.getKey(keyAlias, null);
++        }
++    }
++    synchronized byte[] seal(byte[] raw, byte[] aad) throws Exception {
++        Cipher c=Cipher.getInstance("AES/GCM/NoPadding");c.init(Cipher.ENCRYPT_MODE,key());c.updateAAD(aad);
++        byte[] ciphertext=c.doFinal(raw),iv=c.getIV(),out=new byte[iv.length+ciphertext.length];
++        if(iv.length!=12)throw new SecurityException("Некорректный IV хранилища");
++        System.arraycopy(iv,0,out,0,iv.length);System.arraycopy(ciphertext,0,out,iv.length,ciphertext.length);return out;
++    }
++    synchronized byte[] open(byte[] sealed, byte[] aad) throws Exception {
++        if(sealed==null||sealed.length<28)throw new SecurityException("Повреждённый ключ LIVE");
++        Cipher c=Cipher.getInstance("AES/GCM/NoPadding");
++        c.init(Cipher.DECRYPT_MODE,key(),new GCMParameterSpec(128,java.util.Arrays.copyOfRange(sealed,0,12)));
++        c.updateAAD(aad);return c.doFinal(sealed,12,sealed.length-12);
+     }
+     synchronized void save(String text) throws Exception {
+         Cipher c = Cipher.getInstance("AES/GCM/NoPadding"); c.init(Cipher.ENCRYPT_MODE, key());
+diff --git a/app/src/main/java/com/muwahid/app/VoiceRoomActivity.java b/app/src/main/java/com/muwahid/app/VoiceRoomActivity.java
+index bd54a1b..b87388e 100644
+--- a/app/src/main/java/com/muwahid/app/VoiceRoomActivity.java
++++ b/app/src/main/java/com/muwahid/app/VoiceRoomActivity.java
+@@ -30,6 +30,8 @@ public final class VoiceRoomActivity extends Activity {
+     private static final int REQ_MIC=7301, REQ_ROOM_IMAGE=7401, REQ_ROOM_VIDEO=7402, REQ_ROOM_BOOK=7403, REQ_ROOM_AUDIO=7404, REQ_BACKGROUND_IMAGE=7410, REQ_BACKGROUND_VIDEO=7411;
+     private WebView web;
+     private Api api;
++    private LiveCrypto liveCrypto;
++    private synchronized LiveCrypto liveCrypto() throws Exception {if(liveCrypto==null)liveCrypto=new LiveCrypto(this,api);return liveCrypto;}
+     private final ExecutorService worker=Executors.newFixedThreadPool(4);
+     private final ExecutorService recorderWorker=Executors.newSingleThreadExecutor();
+     private final ConcurrentHashMap<String,File> bookCache=new ConcurrentHashMap<>();
+@@ -164,6 +166,30 @@ public final class VoiceRoomActivity extends Activity {
+         }catch(Exception e){return blocked();}
+     }
+ 
++    private JSONObject sendSecure(LiveCrypto.Item item,String kind,String body,JSONObject media) throws Exception {
++        JSONObject envelope=new JSONObject(item.envelope.toString());
++        if(media!=null){
++            envelope.put("path",media.getString("path"));
++            if(media.optBoolean("live_background"))envelope.put("live_background",true);
++            if(media.optBoolean("live_book"))envelope.put("live_book",true);
++        }
++        Object result=api.rpc("mw_room_secure_send",new JSONObject().put("p_room",roomId).put("p_kind",kind)
++            .put("p_body",item.encryptMessage(kind,body,media)).put("p_media",envelope).put("p_recipients",item.recipients));
++        return liveCrypto().openMessage(roomId,(JSONObject)result);
++    }
++    private byte[] downloadLiveFile(String path,boolean book) throws Exception {
++        if(path==null||!path.startsWith(roomId+"/")||path.contains(".."))throw new SecurityException("Недопустимый файл");
++        book=path.startsWith(roomId+"/books/");
++        // Existing books predate message envelopes. Keep their authenticated read path.
++        if(!path.contains("/e2ee/"))return book?api.downloadRoomBook(path):api.downloadRoomMedia(path);
++        Object value=api.rpc("mw_room_secure_media_get",new JSONObject().put("p_room",roomId).put("p_path",path));
++        if(!(value instanceof JSONObject))throw new SecurityException("Файл недоступен");
++        JSONObject message=(JSONObject)value;
++        byte[] raw=book?api.downloadRoomBook(path):api.downloadRoomMedia(path);
++        if(!message.optString("body").startsWith("mwl1:"))return raw;
++        return liveCrypto().openFile(roomId,path,message,raw);
++    }
++
+     private String readAsset(String name) throws Exception{
+         StringBuilder b=new StringBuilder();try(BufferedReader r=new BufferedReader(new InputStreamReader(getAssets().open(name),"UTF-8"))){String line;while((line=r.readLine())!=null)b.append(line).append('\n');}return b.toString();
+     }
+@@ -179,7 +205,34 @@ public final class VoiceRoomActivity extends Activity {
+         @JavascriptInterface public void rpc(String requestId,String function,String argsJson){
+             if(!allowed.contains(function)){deliver(requestId,null,"Недоступная операция");return;}
+             worker.execute(()->{try{
+-                Object result=api.rpc(function,new JSONObject(argsJson));
++                JSONObject args=new JSONObject(argsJson);
++                if(args.has("p_room")&&!roomId.equals(args.getString("p_room")))throw new SecurityException("Другая комната");
++                Object result;
++                if("mw_room_message_send".equals(function)) {
++                    if(!"text".equals(args.getString("p_kind")))throw new SecurityException("Выберите файл в приложении");
++                    String body=args.getString("p_body");
++                    if(body.trim().isEmpty()||body.length()>4000)throw new Exception("Сообщение должно содержать от 1 до 4000 символов");
++                    result=sendSecure(liveCrypto().prepare(roomId),"text",body,null);
++                } else if("mw_room_background_get".equals(function)) {
++                    Object value=api.rpc("mw_room_secure_background_get",args);
++                    if(value instanceof JSONObject){JSONObject clear=liveCrypto().openMessage(roomId,(JSONObject)value);
++                        result=new JSONObject().put("id",clear.get("id")).put("kind",clear.get("kind")).put("path",clear.getJSONObject("media").getString("path"));
++                    }else result=null;
++                } else {
++                    result=api.rpc(function,args);
++                    if("mw_room_messages_get".equals(function)&&result instanceof JSONArray) {
++                        JSONArray messages=(JSONArray)result;
++                        for(int n=0;n<messages.length();n++) {
++                            JSONObject m=messages.getJSONObject(n);
++                            try{messages.put(n,liveCrypto().openMessage(roomId,m));}
++                            catch(Exception failure){
++                                JSONObject unavailable=new JSONObject(m.toString());
++                                unavailable.put("kind","text").put("body","🔒 Сообщение недоступно. Проверьте код безопасности отправителя; история до вашего входа не передаётся.").put("media",JSONObject.NULL);
++                                messages.put(n,unavailable);
++                            }
++                        }
++                    }
++                }
+                 if("mw_room_join".equals(function))joined=true;
+                 if("mw_room_leave".equals(function)||"mw_room_end".equals(function)){
+                     joined=false;
+@@ -208,7 +261,7 @@ public final class VoiceRoomActivity extends Activity {
+                 String key=sha256(path),mime=backgroundMime(path,kind);
+                 File file=backgroundFiles.get(key);
+                 if(file==null||!file.exists()){
+-                    byte[] bytes=api.downloadRoomMedia(path);
++                    byte[] bytes=downloadLiveFile(path,false);
+                     File directory=new File(getCacheDir(),"live_background");directory.mkdirs();
+                     file=new File(directory,key+".media");
+                     try(FileOutputStream out=new FileOutputStream(file)){out.write(bytes);}
+@@ -248,7 +301,7 @@ public final class VoiceRoomActivity extends Activity {
+         });}
+ 
+         @JavascriptInterface public void openMedia(String path,String mime,String name){
+-            worker.execute(()->{try{byte[] raw=api.downloadRoomMedia(path);File dir=new File(getCacheDir(),"room_media");dir.mkdirs();String safe=(name==null?"file":name).replaceAll("[^A-Za-zА-Яа-я0-9._ -]","_");File f=new File(dir,UUID.randomUUID()+"_"+safe);try(FileOutputStream out=new FileOutputStream(f)){out.write(raw);}Uri u=FileProvider.getUriForFile(VoiceRoomActivity.this,getPackageName()+".files",f);Intent open=new Intent(Intent.ACTION_VIEW);open.setDataAndType(u,mime==null?"application/octet-stream":mime);open.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);runOnUiThread(()->{try{startActivity(open);}catch(Exception ex){toast("На телефоне нет приложения для открытия этого файла");}});}catch(Exception e){runOnUiThread(()->toast(e.getMessage()==null?"Не удалось открыть файл":e.getMessage()));}});
++            worker.execute(()->{try{byte[] raw=downloadLiveFile(path,false);File dir=new File(getCacheDir(),"room_media");dir.mkdirs();String safe=(name==null?"file":name).replaceAll("[^A-Za-zА-Яа-я0-9._ -]","_");File f=new File(dir,UUID.randomUUID()+"_"+safe);try(FileOutputStream out=new FileOutputStream(f)){out.write(raw);}Uri u=FileProvider.getUriForFile(VoiceRoomActivity.this,getPackageName()+".files",f);Intent open=new Intent(Intent.ACTION_VIEW);open.setDataAndType(u,mime==null?"application/octet-stream":mime);open.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);runOnUiThread(()->{try{startActivity(open);}catch(Exception ex){toast("На телефоне нет приложения для открытия этого файла");}});}catch(Exception e){runOnUiThread(()->toast(e.getMessage()==null?"Не удалось открыть файл":e.getMessage()));}});
+         }
+ 
+         @JavascriptInterface public void invite(){runOnUiThread(()->{
+@@ -364,9 +417,9 @@ public final class VoiceRoomActivity extends Activity {
+         final String kind=requestCode==REQ_ROOM_IMAGE?"image":"video";
+         worker.execute(()->{try{
+             byte[] raw=readUri(uri,24*1024*1024);String mime=getContentResolver().getType(uri);if(mime==null)mime=kind.equals("image")?"image/jpeg":"video/mp4";
+-            String name=kind.equals("image")?"Фото":"Видео";String path=roomId+"/"+UUID.randomUUID()+".bin";api.uploadRoomMedia(path,raw);
++            String name=kind.equals("image")?"Фото":"Видео";String path=roomId+"/e2ee/"+UUID.randomUUID()+".bin";LiveCrypto.Item item=liveCrypto().prepare(roomId);api.uploadRoomMedia(path,item.encryptFile(raw,path));
+             JSONObject media=new JSONObject().put("path",path).put("mime",mime).put("name",name).put("size",raw.length);
+-            api.rpc("mw_room_message_send",new JSONObject().put("p_room",roomId).put("p_kind",kind).put("p_body","").put("p_media",media));
++            sendSecure(item,kind,"",media);
+             runOnUiThread(()->{if(web!=null)web.evaluateJavascript("window.mwRoomMediaSent&&window.mwRoomMediaSent();",null);});
+         }catch(Exception e){runOnUiThread(()->toast(e.getMessage()==null?"Не удалось отправить файл":e.getMessage()));}});
+     }
+@@ -395,12 +448,12 @@ public final class VoiceRoomActivity extends Activity {
+                     }finally{mmr.release();}
+                 }
+                 String ext=video?("video/webm".equals(mime)?".webm":".mp4"):("image/png".equals(mime)?".png":"image/webp".equals(mime)?".webp":".jpg");
+-                String path=roomId+"/background/"+UUID.randomUUID()+ext;
++                String path=roomId+"/background/e2ee/"+UUID.randomUUID()+ext;
+                 byte[] data=readUri(uri,video?24*1024*1024:10*1024*1024);
+-                api.uploadRoomMedia(path,data);
++                LiveCrypto.Item item=liveCrypto().prepare(roomId);api.uploadRoomMedia(path,item.encryptFile(data,path));
+                 JSONObject media=new JSONObject().put("path",path).put("mime",mime).put("name",video?"Фон: видео":"Фон: фото")
+                     .put("size",data.length).put("live_background",true).put("duration_seconds",durationSeconds);
+-                api.rpc("mw_room_message_send",new JSONObject().put("p_room",roomId).put("p_kind",video?"video":"image").put("p_body","").put("p_media",media));
++                sendSecure(item,video?"video":"image","",media);
+                 runOnUiThread(()->{
+                     toast("Фон эфира установлен");
+                     if(web!=null)web.evaluateJavascript("window.mwBackgroundPublished&&window.mwBackgroundPublished("+JSONObject.quote(path)+","+JSONObject.quote(video?"video":"image")+");",null);
+@@ -426,10 +479,12 @@ public final class VoiceRoomActivity extends Activity {
+             String name=queryDisplayName(uri);if(name==null||name.trim().isEmpty())name="Книга.pdf";name=name.trim();if(name.length()>180)name=name.substring(0,180);
+             File tmp=new File(getCacheDir(),"selected_"+UUID.randomUUID()+".pdf");try(FileOutputStream out=new FileOutputStream(tmp)){out.write(raw);}
+             int pages=pdfPageCount(tmp);if(pages<1)throw new Exception("PDF не содержит страниц");if(pages>5000)throw new Exception("В книге слишком много страниц");
+-            String objectPath=roomId+"/books/"+UUID.randomUUID()+".pdf";
+-            api.uploadRoomBook(objectPath,raw);
++            String objectPath=roomId+"/books/e2ee/"+UUID.randomUUID()+".pdf";
++            LiveCrypto.Item item=liveCrypto().prepare(roomId);
++            api.uploadRoomBook(objectPath,item.encryptFile(raw,objectPath));
++            sendSecure(item,"file","",new JSONObject().put("path",objectPath).put("mime","application/pdf").put("name",name).put("size",raw.length).put("live_book",true));
+             bookCache.put(objectPath,tmp);
+-            Object result=api.rpc("mw_room_book_start",new JSONObject().put("p_room",roomId).put("p_path",objectPath).put("p_file_name",name).put("p_total_pages",pages));
++            Object result=api.rpc("mw_room_book_start",new JSONObject().put("p_room",roomId).put("p_path",objectPath).put("p_file_name","Книга.pdf").put("p_total_pages",pages));
+             final String json=result==null?"{}":result.toString();
+             runOnUiThread(()->{if(web!=null)web.evaluateJavascript("window.mwBookStarted&&window.mwBookStarted("+json+");",null);});
+         }catch(Exception e){runOnUiThread(()->toast(e.getMessage()==null?"Не удалось открыть книгу":e.getMessage()));}});
+@@ -470,7 +525,7 @@ public final class VoiceRoomActivity extends Activity {
+         File cached=bookCache.get(path);if(cached!=null&&cached.exists()&&cached.length()>0)return cached;
+         File dir=new File(getCacheDir(),"room_books");dir.mkdirs();
+         File f=new File(dir,sha256(path)+".pdf");
+-        if(!f.exists()||f.length()==0){byte[] raw=api.downloadRoomBook(path);File t=new File(dir,f.getName()+".tmp");try(FileOutputStream out=new FileOutputStream(t)){out.write(raw);}if(!t.renameTo(f)){try(FileInputStream in=new FileInputStream(t);FileOutputStream out=new FileOutputStream(f)){byte[] b=new byte[16384];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}t.delete();}}
++        if(!f.exists()||f.length()==0){byte[] raw=downloadLiveFile(path,true);File t=new File(dir,f.getName()+".tmp");try(FileOutputStream out=new FileOutputStream(t)){out.write(raw);}if(!t.renameTo(f)){try(FileInputStream in=new FileInputStream(t);FileOutputStream out=new FileOutputStream(f)){byte[] b=new byte[16384];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}t.delete();}}
+         bookCache.put(path,f);return f;
+     }
+ 
