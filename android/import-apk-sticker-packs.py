@@ -180,7 +180,7 @@ found=list(new_intent.finditer(java))
 if len(found)>1:raise RuntimeError("Unexpected onNewIntent overloads")
 if found:
     m=found[0]
-    java=java[:m.end()]+"\n        setIntent("+m.group(2)+");"+java[m.end():]
+    java=java[:m.end()]+"\n        setIntent("+m.group(2)+");processIncomingStickerArchive();"+java[m.end():]
 else:
     java=one(java,marker,
         '    @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);processIncomingStickerArchive();}\n'+marker,
