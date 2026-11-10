@@ -260,9 +260,12 @@ replace_block(TEST,
             }
             CryptoBox cb=new CryptoBox(getTargetContext());
             String alice="sticker-test-alice",bob="sticker-test-bob";
+            String ak=cb.publicKey(alice),bk=cb.publicKey(bob);
+            cb.verifyPeer(alice,"sticker-test-chat",bk);
+            cb.verifyPeer(bob,"sticker-test-chat",ak);
             byte[] sample=new byte[]{(byte)0x89,'P','N','G',13,10,26,10,0,0,0,0};
-            byte[] cipher=cb.encryptBytes(alice,"sticker-test-chat",cb.publicKey(bob),sample);
-            if(!java.util.Arrays.equals(sample,cb.decryptBytes(bob,"sticker-test-chat",cb.publicKey(alice),cipher)))
+            byte[] cipher=encodedMedia(cb.encryptBytes(alice,"sticker-test-chat",bk,sample));
+            if(!java.util.Arrays.equals(sample,cb.decryptBytes(bob,"sticker-test-chat",ak,cipher)))
                 throw new AssertionError("Encrypted sticker round-trip failed");
 
 """)
