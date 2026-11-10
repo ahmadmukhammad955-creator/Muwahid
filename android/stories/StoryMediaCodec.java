@@ -21,6 +21,10 @@ final class StoryMediaCodec {
     private static final SecureRandom RANDOM = new SecureRandom();
     private StoryMediaCodec(){}
 
+    private static void checkKey(byte[] key){
+        if(key==null||key.length!=32)throw new SecurityException("Требуется 256-битный ключ истории");
+    }
+
     static byte[] newKey(){
         byte[] key=new byte[32];RANDOM.nextBytes(key);return key;
     }
