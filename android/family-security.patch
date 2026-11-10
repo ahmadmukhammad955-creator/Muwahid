@@ -1,0 +1,616 @@
+diff --git a/app/build.gradle b/app/build.gradle
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -26,8 +26,8 @@
+         applicationId 'com.muwahid.app'
+         minSdk 23
+         targetSdk 35
+-        versionCode 72
+-        versionName '0.13.37'
++        versionCode 73
++        versionName '0.13.38'
+         buildConfigField 'String', 'SERVER_URL', '"https://pucxqnegbnjzawzwnpjh.supabase.co"'
+         buildConfigField 'String', 'PUBLIC_KEY', '"sb_publishable_Mtsx-WuCfSPIyxjOlo-9dw_x6Xxbe6p"'
+         buildConfigField 'String', 'FCM_APP_ID', '"' + fcmAppId + '"'
+diff --git a/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java b/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java
+--- a/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java
++++ b/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java
+@@ -159,7 +159,7 @@
+             activity = launch();
+             waitForIdleSync();
+
+-            if (!"0.13.37".equals(BuildConfig.VERSION_NAME)) {
++            if (!"0.13.38".equals(BuildConfig.VERSION_NAME)) {
+                 throw new AssertionError("Wrong version " + BuildConfig.VERSION_NAME);
+             }
+             checkProfileQr();
+@@ -323,7 +323,7 @@
+                 checkedOnMain(()->locked.finish());waitForIdleSync();
+             }
+             getTargetContext().getSharedPreferences("muwahid",0).edit().putBoolean("app_lock",false).commit();
+-            result.putString("stream", "MW_SMOKE_OK: 0.13.37 WhatsApp-style chats + LIVE, calls, attachments, camera, location, documents, voice speed, stickers, E2EE, privacy");
++            result.putString("stream", "MW_SMOKE_OK: 0.13.38 WhatsApp-style chats + LIVE, calls, attachments, camera, location, documents, voice speed, stickers, E2EE, privacy");
+             finish(Activity.RESULT_OK, result);
+         } catch (Throwable e) {
+             result.putString("stream", "MW_SMOKE_FAILED: " + e.getClass().getName() + ": " + String.valueOf(e.getMessage()));
+diff --git a/app/src/main/java/com/muwahid/app/Api.java b/app/src/main/java/com/muwahid/app/Api.java
+--- a/app/src/main/java/com/muwahid/app/Api.java
++++ b/app/src/main/java/com/muwahid/app/Api.java
+@@ -29,23 +29,34 @@
+         JSONObject external=settings.optJSONObject("external");
+         return external!=null && external.optBoolean("google",false);
+     }
+-    String googleOAuthUrl() throws Exception {
+-        return BuildConfig.SERVER_URL+"/auth/v1/authorize?provider=google&redirect_to="+URLEncoder.encode("muwahid://auth-callback","UTF-8");
+-    }
+-    synchronized void acceptOAuthCallback(String fragment) throws Exception {
+-        if(fragment==null||fragment.trim().isEmpty())throw new Exception("Google не вернул данные входа. Проверьте Redirect URL в Supabase.");
+-        Map<String,String> values=new HashMap<>();
+-        for(String part:fragment.split("&")){
+-            int p=part.indexOf('=');if(p<0)continue;
+-            values.put(URLDecoder.decode(part.substring(0,p),"UTF-8"),URLDecoder.decode(part.substring(p+1),"UTF-8"));
+-        }
+-        String err=values.get("error_description");if(err==null)err=values.get("error");
+-        if(err!=null&&!err.isEmpty())throw new Exception("Вход через Google не выполнен: "+err);
+-        String access=values.get("access_token"),refresh=values.get("refresh_token");
+-        if(access==null||access.isEmpty()||refresh==null||refresh.isEmpty())throw new Exception("Не удалось получить сессию Google.");
+-        long expires=3600;try{expires=Long.parseLong(values.get("expires_in"));}catch(Exception ignored){}
+-        JSONObject result=new JSONObject().put("access_token",access).put("refresh_token",refresh).put("expires_in",expires).put("token_type","bearer");
+-        acceptSession(result);
++    String googleOAuthUrl(SecureStore pendingOAuth) throws Exception {
++        byte[] random = new byte[32];
++        new java.security.SecureRandom().nextBytes(random);
++        int flags = android.util.Base64.URL_SAFE | android.util.Base64.NO_WRAP | android.util.Base64.NO_PADDING;
++        String verifier = android.util.Base64.encodeToString(random, flags);
++        byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
++                .digest(verifier.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
++        String challenge = android.util.Base64.encodeToString(digest, flags);
++        pendingOAuth.save(new JSONObject().put("verifier",verifier)
++                .put("expires_at",System.currentTimeMillis()+10L*60L*1000L).toString());
++        return BuildConfig.SERVER_URL+"/auth/v1/authorize?provider=google&redirect_to="
++                +URLEncoder.encode("muwahid://auth-callback","UTF-8")
++                +"&code_challenge_method=s256&code_challenge="+challenge;
++    }
++    synchronized void acceptOAuthCallback(String code, SecureStore pendingOAuth) throws Exception {
++        if(signedIn())throw new Exception("Для входа в другой аккаунт сначала выйдите из текущего.");
++        String pending = pendingOAuth.load();
++        if(pending.isEmpty() || code==null || code.isEmpty() || code.length()>512)
++            throw new Exception("Вход через Google не завершён. Начните вход заново.");
++        JSONObject flow = new JSONObject(pending);
++        if(flow.getLong("expires_at")<=System.currentTimeMillis()){
++            pendingOAuth.clear();
++            throw new Exception("Срок входа через Google истёк. Начните вход заново.");
++        }
++        JSONObject exchange = new JSONObject().put("auth_code",code)
++                .put("code_verifier",flow.getString("verifier"));
++        acceptSession(object(request("/auth/v1/token?grant_type=pkce",exchange,"")));
++        pendingOAuth.clear();
+     }
+     private JSONObject object(String text) throws Exception { return new JSONObject(text); }
+     private String request(String path, JSONObject data, String token) throws Exception { return request(path,data,token,"POST"); }
+@@ -74,13 +85,13 @@
+                     else if (code.equals("phone_provider_disabled")) msg = "Вход по телефону ещё не включён на сервере Muwahid.";
+                     else if (code.equals("sms_send_failed")) msg = "Не удалось отправить SMS-код. Проверьте настройки SMS на сервере.";
+                     else if (code.equals("otp_expired")) msg = "Код истёк или введён неверно. Запросите новый код.";
+-                    else if (code.equals("otp_disabled")) msg = "Supabase отклонил OTP для этого номера. Код Muwahid уже разрешает создание аккаунта; проверьте состояние Phone Auth на сервере.";
++                    else if (code.equals("otp_disabled")) msg = "Не удалось отправить код для существующего аккаунта.";
+                     else if (code.equals("refresh_token_already_used")) throw new StaleRefreshTokenException();
+                     else if (code.equals("provider_disabled") || detail.toLowerCase(java.util.Locale.ROOT).contains("provider is not enabled")) msg = "Google-вход ещё не активен на сервере Supabase, хотя настройка может отображаться включённой.";
+                     else if (status == 429) msg = "Слишком много попыток. Подождите немного.";
+                     else if (code.equals("23505")) msg = "Это имя пользователя уже занято.";
+                     else if (code.equals("mfa_verification_failed")) msg = "Неверный код. Проверьте время на телефоне и попробуйте снова.";
+-                    else if (status==404 && path.startsWith("/rest/v1/rpc/")) msg = "Сервер Muwahid ещё не обновлён для этой функции. Нужно применить серверное обновление 0.7.";
++                    else if (status==404 && path.startsWith("/rest/v1/rpc/")) throw new RpcNotFoundException();
+                     else if (detail.equals("MW:MFA_REQUIRED")) throw new MfaRequiredException();
+                     else if (detail.startsWith("MW:")) msg = detail.substring(3);
+                 } catch (JSONException ignored) {}
+@@ -91,9 +102,9 @@
+             return text.toString();
+         } finally { c.disconnect(); }
+     }
+-    synchronized boolean register(String email, String password, String name) throws Exception {
++    synchronized boolean register(String email, String password, String name, String invitation) throws Exception {
+         JSONObject result = object(request("/auth/v1/signup", new JSONObject().put("email", email).put("password", password)
+-                .put("data", new JSONObject().put("display_name", name)), ""));
++                .put("data", new JSONObject().put("display_name", name).put("family_invite", invitation)), ""));
+         if (result.optString("access_token").isEmpty()) return false;
+         acceptSession(result); return true;
+     }
+@@ -101,12 +112,17 @@
+         acceptSession(object(request("/auth/v1/token?grant_type=password", new JSONObject().put("email", email).put("password", password), "")));
+     }
+     synchronized void sendPhoneOtp(String phone) throws Exception {
+-        // Supabase Phone Auth: the same OTP flow signs in existing users and
+-        // creates a new account after a new phone number is verified.
+-        JSONObject body=new JSONObject().put("phone",phone).put("create_user",true);
++        JSONObject body=new JSONObject().put("phone",phone).put("create_user",false);
+         request("/auth/v1/otp",body,"");
+     }
+
++    boolean familyGateEnabled() throws Exception {
++        try {
++            return Boolean.TRUE.equals(publicRpc("mw_family_signup_enabled",new JSONObject()));
++        } catch (RpcNotFoundException absent) {
++            return false;
++        }
++    }
+     Object publicRpc(String function, JSONObject args) throws Exception {
+         String result=request("/rest/v1/rpc/"+function,args,"");
+         return new JSONTokener(result).nextValue();
+@@ -312,5 +328,8 @@
+     }
+     synchronized void clear() { session = new JSONObject(); store.clear(); }
+     static class StaleRefreshTokenException extends Exception { StaleRefreshTokenException(){super("Refresh token already used");} }
++    static class RpcNotFoundException extends Exception {
++        RpcNotFoundException() { super("Эта функция ещё не подключена на сервере Muwahid."); }
++    }
+     static class AuthException extends Exception { AuthException(String msg) { super(msg); } }
+ }
+diff --git a/app/src/main/java/com/muwahid/app/MainActivity.java b/app/src/main/java/com/muwahid/app/MainActivity.java
+--- a/app/src/main/java/com/muwahid/app/MainActivity.java
++++ b/app/src/main/java/com/muwahid/app/MainActivity.java
+@@ -158,8 +158,9 @@
+         Uri data=intent==null?null:intent.getData();
+         if(data==null||!"muwahid".equalsIgnoreCase(data.getScheme())||!"auth-callback".equalsIgnoreCase(data.getHost()))return false;
+         begin("oauth");toolbar("Вход через Google",false,null,null);scrollContent();note(content,"Завершаем безопасный вход через Google…");
+-        final int stamp=generation;final String fragment=data.getFragment();
+-        worker.execute(()->{try{api.acceptOAuthCallback(fragment);handler.post(()->{if(stamp!=generation)return;maybeStartNotifications();showChats();});}catch(Exception ex){handler.post(()->{if(stamp!=generation)return;error(ex);showAuth(false);});}});
++        final int stamp=generation;final String code=data.getQueryParameter("code");
++        intent.setData(null);
++        worker.execute(()->{try{api.acceptOAuthCallback(code,new SecureStore(this,"oauth_flow"));handler.post(()->{if(stamp!=generation)return;maybeStartNotifications();showChats();});}catch(Exception ex){handler.post(()->{if(stamp!=generation)return;error(ex);showAuth(false);});}});
+         return true;
+     }
+     private void maybeStartNotifications(){
+@@ -242,7 +243,7 @@
+     private void gap(LinearLayout l,int h){l.addView(new Space(this),new LinearLayout.LayoutParams(1,dp(h)));}
+     private void note(LinearLayout l,String s){TextView t=label(s,13,muted);t.setLineSpacing(dp(3),1);l.addView(t);}
+     private void notice(String s){new AlertDialog.Builder(this).setMessage(s).setPositiveButton("Понятно",null).show();}
+-    private void error(Exception e){if(e instanceof Api.MfaRequiredException){showTwoFactor();return;}String s=e.getMessage();if(e instanceof java.io.IOException)s="Нет связи с сервером. Проверьте интернет и попробуйте снова.";notice(s==null?"Не удалось выполнить действие":s);}
++    private void error(Exception e){if(e instanceof Api.MfaRequiredException){showTwoFactor();return;}String s=e.getMessage();if("Ожидается подтверждение владельца".equals(s)){showFamilyPending();return;}if("Доступ к Muwahid отозван".equals(s)||"Сеанс отозван. Войдите заново.".equals(s)){api.clear();chats=new JSONArray();NotificationService.stop(this);showWelcome();notice(s);return;}if(e instanceof java.io.IOException)s="Нет связи с сервером. Проверьте интернет и попробуйте снова.";notice(s==null?"Не удалось выполнить действие":s);}
+     private void refreshRemoteConfig(boolean force){
+         if(remote==null||api==null||!api.configured())return;
+         long now=System.currentTimeMillis();
+@@ -662,11 +663,112 @@
+         FrameLayout scene=new FrameLayout(this);scene.setBackgroundColor(Color.parseColor("#06101B"));
+         Logo hero=new Logo(this,true);scene.addView(hero,new FrameLayout.LayoutParams(-1,-1));root.addView(scene,new LinearLayout.LayoutParams(-1,0,1));
+         LinearLayout actions=vertical();actions.setPadding(dp(28),dp(6),dp(28),dp(24));actions.setBackgroundColor(bg);
+-        Button start=button(rc("welcome.start_button","Начать"));actions.addView(start,new LinearLayout.LayoutParams(-1,dp(56)));start.setEnabled(remote==null||remote.bool("auth.enabled",true));start.setOnClickListener(v->{if(api.configured())showAuth(true);else notice("Сервер сообщений ещё не подключён.");});
++        Button start=button(rc("welcome.start_button","Начать"));actions.addView(start,new LinearLayout.LayoutParams(-1,dp(56)));start.setEnabled(remote==null||remote.bool("auth.enabled",true));start.setOnClickListener(v->{if(api.configured())showFamilyEmail(true);else notice("Сервер сообщений ещё не подключён.");});
+         TextView login=label(rc("welcome.login_text","Уже есть аккаунт?  Войти"),14,muted);login.setGravity(Gravity.CENTER);login.setPadding(0,dp(17),0,dp(10));actions.addView(login);login.setOnClickListener(v->{if(api.configured())showAuth(false);else notice("Сервер сообщений ещё не подключён.");});
++        if(api.configured()){
++            TextView emailLogin=label("Войти по электронной почте",14,accent);
++            emailLogin.setGravity(Gravity.CENTER);
++            emailLogin.setPadding(0,dp(7),0,dp(9));
++            emailLogin.setOnClickListener(v->showFamilyEmail(false));
++            actions.addView(emailLogin);
++        }
+         TextView saved=label(rc("welcome.notes_text","Открыть личные заметки"),13,accent);saved.setGravity(Gravity.CENTER);saved.setPadding(0,dp(7),0,dp(9));actions.addView(saved);saved.setOnClickListener(v->showNotes());
+         TextView state=label(rc("welcome.status_text","Muwahid · настройки обновляются через Supabase"),11,muted);state.setGravity(Gravity.CENTER);actions.addView(state);root.addView(actions);
+     }
++    private void showFamilyEmail(boolean register) {
++        begin("family_email");
++        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
++        toolbar(register ? "Семейное приглашение" : "Вход по почте",true,null,null);
++        scrollContent();
++        if(register && remote!=null && !remote.bool("auth.enabled",true)){
++            note(content,rc("maintenance.message","Регистрация временно недоступна."));
++            return;
++        }
++        if(register) note(content,"Попросите владельца создать одноразовый код для вашей почты.");
++        EditText email=field("Электронная почта",false);
++        email.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
++        EditText password=field("Пароль",true);
++        password.setSaveEnabled(false);
++        content.addView(email);
++        gap(content,10);
++        content.addView(password);
++        EditText name=register?field("Ваше имя",false):null;
++        EditText invitation=register?field("Код приглашения",true):null;
++        if(register){
++            invitation.setSaveEnabled(false);
++            gap(content,10);
++            content.addView(name);
++            gap(content,10);
++            content.addView(invitation);
++        }
++        gap(content,18);
++        Button submit=button(register?"Зарегистрироваться":"Войти");
++        content.addView(submit,new LinearLayout.LayoutParams(-1,dp(54)));
++        submit.setOnClickListener(v->{
++            if(loading)return;
++            String address=email.getText().toString().trim();
++            String secret=password.getText().toString();
++            String displayName=register?name.getText().toString().trim():"";
++            String token=register?invitation.getText().toString().trim().toLowerCase(Locale.ROOT):"";
++            if(!android.util.Patterns.EMAIL_ADDRESS.matcher(address).matches()){
++                email.setError("Укажите действующую почту");
++                return;
++            }
++            if(secret.isEmpty() || register && secret.length()<12){
++                password.setError(register?"Укажите пароль длиной от 12 символов":"Введите пароль");
++                return;
++            }
++            if(register && displayName.isEmpty()){
++                name.setError("Введите имя");
++                return;
++            }
++            if(register && !token.matches("[0-9a-f]{64}")){
++                invitation.setError("Введите полученный код приглашения");
++                return;
++            }
++            async(()->{
++                if(register){
++                    if(!api.familyGateEnabled())throw new Exception("Семейная регистрация пока недоступна");
++                    return api.register(address,secret,displayName,token);
++                }
++                api.login(address,secret);
++                return true;
++            },result->{
++                if(!Boolean.TRUE.equals(result)){
++                    showFamilyEmail(false);
++                    notice("Если пришло письмо, подтвердите почту и войдите. После входа дождитесь подтверждения владельца.");
++                }else if(register){
++                    showFamilyPending();
++                }else{
++                    maybeStartNotifications();
++                    showChats();
++                }
++            });
++        });
++    }
++
++    private void showFamilyPending() {
++        begin("family_pending");
++        toolbar("Семейный доступ",false,null,null);
++        scrollContent();
++        note(content,"Владелец должен подтвердить ваш аккаунт. После подтверждения проверьте доступ снова.");
++        gap(content,16);
++        Button retry=button("Проверить доступ");
++        content.addView(retry,new LinearLayout.LayoutParams(-1,dp(54)));
++        retry.setOnClickListener(v->async(()->api.rpc("mw_family_access_status",new JSONObject()),state->{
++            switch(String.valueOf(state)){
++                case "active": maybeStartNotifications();showChats();break;
++                case "mfa_required": showTwoFactor();break;
++                case "revoked": case "session_revoked": api.clear();showWelcome();notice("Доступ к этому сеансу отозван.");break;
++                default: notice("Подтверждение владельца ещё не получено.");
++            }
++        }));
++        gap(content,10);
++        Button back=button("Выйти");
++        content.addView(back,new LinearLayout.LayoutParams(-1,dp(54)));
++        back.setOnClickListener(v->async(()->{api.logout();return null;},ignored->showWelcome()));
++    }
++
+     private void showAuth(boolean register){
+         phoneRegisterMode=register;begin("auth");
+         if(remote!=null&&!remote.bool("auth.enabled",true)){
+@@ -701,7 +803,7 @@
+         final int stamp=generation;
+         worker.execute(()->{try{
+             if(!api.googleProviderEnabled())throw new Exception("Google сейчас не активен на живом Auth-сервере Supabase. Проверьте Client ID, Client Secret и Save в провайдере Google.");
+-            final Uri url=Uri.parse(api.googleOAuthUrl());
++            final Uri url=Uri.parse(api.googleOAuthUrl(new SecureStore(this,"oauth_flow")));
+             handler.post(()->{if(stamp!=generation)return;try{startActivity(new Intent(Intent.ACTION_VIEW,url));}catch(Exception e){error(e);}});
+         }catch(Exception e){handler.post(()->{if(stamp==generation)error(e);});}});
+     }
+@@ -1228,7 +1330,7 @@
+         }catch(Exception e){handler.post(()->{loading=false;if(stamp!=generation)return;boolean retrySend=sendAfterE2eeReady;sendAfterE2eeReady=false;e2eeBackendReady=false;peerE2eeKey="";connection.setText(chatSecurityStatus());if(e instanceof Api.MfaRequiredException)error(e);else{loadMessages(true);if(retrySend)notice("Не удалось подготовить защищённое соединение. Проверьте интернет и повторите отправку.");}});}});
+     }
+     private String chatSecurityStatus(){
+-        if(e2eeBackendReady&&!peerE2eeKey.isEmpty())return "Сквозное шифрование активно";
++        if(e2eeBackendReady&&!peerE2eeKey.isEmpty())return "Сообщения шифруются · ключ собеседника не проверен";
+         if(e2eeBackendReady)return "Собеседник ещё не активировал E2EE";
+         return "Личная переписка · E2EE на сервере ещё не готово";
+     }
+@@ -1767,9 +1869,83 @@
+         EditText code=field("Код из 6 цифр",true);code.setInputType(18);code.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6)});code.setSaveEnabled(false);
+         Button verify=button("Подтвердить");content.addView(verify,new LinearLayout.LayoutParams(-1,dp(54)));verify.setOnClickListener(v->{String value=code.getText().toString().trim();if(!value.matches("[0-9]{6}")){code.setError("Нужны 6 цифр");return;}verify.setEnabled(false);final int stamp=generation;worker.execute(()->{try{api.verifyTotp(factor,value);handler.post(()->{if(stamp!=generation)return;code.setText("");showTwoFactor();notice("Второй фактор подтверждён.");});}catch(Exception ex){handler.post(()->{if(stamp!=generation)return;verify.setEnabled(true);code.setText("");error(ex);});}});});
+     }
+-    private void showOwner(){begin("owner");toolbar("Панель владельца",true,null,null);scrollContent();note(content,"Проверяем доступ на сервере…");async(()->api.rpc("mw_owner_overview",new JSONObject()),result->{JSONObject stats=(JSONObject)result;content.removeAllViews();note(content,"Доступ владельца подтверждён вторым фактором.");gap(content,22);note(content,"Пользователей: "+stats.optLong("users")+"\nЛичных чатов: "+stats.optLong("chats")+"\nСообщений: "+stats.optLong("messages")+"\nОткрытых жалоб: "+stats.optLong("open_complaints"));gap(content,22);note(content,"Раздел владельца доступен только аккаунту, закреплённому на сервере, и только после второго фактора.");});}
++    private void showOwner(){begin("owner");toolbar("Панель владельца",true,null,null);scrollContent();note(content,"Проверяем доступ на сервере…");async(()->api.rpc("mw_owner_overview",new JSONObject()),result->{JSONObject stats=(JSONObject)result;content.removeAllViews();note(content,"Доступ владельца подтверждён вторым фактором.");gap(content,22);note(content,"Пользователей: "+stats.optLong("users")+"\nЛичных чатов: "+stats.optLong("chats")+"\nСообщений: "+stats.optLong("messages")+"\nОткрытых жалоб: "+stats.optLong("open_complaints"));gap(content,22);note(content,"Раздел владельца доступен только аккаунту, закреплённому на сервере, и только после второго фактора.");gap(content,16);Button family=button("Семейный доступ");content.addView(family,new LinearLayout.LayoutParams(-1,dp(54)));family.setOnClickListener(v->showFamilyOwner());});}
++    private void showFamilyOwner() {
++        begin("family_owner");
++        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
++        toolbar("Семейный доступ",true,null,null);
++        scrollContent();
++        note(content,"Проверяем права владельца…");
++        async(()->api.rpc("mw_family_owner_list",new JSONObject()),result->{
++            JSONObject data=(JSONObject)result;
++            content.removeAllViews();
++            EditText email=field("Почта родственника",false);
++            email.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
++            content.addView(email);
++            gap(content,10);
++            Button invite=button("Создать приглашение на 24 часа");
++            content.addView(invite,new LinearLayout.LayoutParams(-1,dp(54)));
++            invite.setOnClickListener(v->{
++                if(loading)return;
++                String address=email.getText().toString().trim();
++                async(()->api.rpc("mw_family_invite_create",new JSONObject().put("p_email",address)),token->{
++                    EditText code=field("Код приглашения",false);
++                    code.setSingleLine(false);
++                    code.setText(String.valueOf(token));
++                    code.setKeyListener(null);
++                    code.setTextIsSelectable(true);
++                    code.setSaveEnabled(false);
++                    new AlertDialog.Builder(this).setTitle("Одноразовое приглашение")
++                        .setMessage("Передайте код лично получателю. После закрытия этот код снова не отобразится.")
++                        .setView(code).setPositiveButton("Готово",(dialog,which)->showFamilyOwner()).show();
++                });
++            });
++            JSONArray members=data.getJSONArray("members");
++            gap(content,20);
++            note(content,"Участники семьи");
++            for(int i=0;i<members.length();i++){
++                JSONObject member=members.getJSONObject(i);
++                String id=member.getString("id");
++                String name=member.optString("name","Участник");
++                String address=member.isNull("email")?"":member.optString("email");
++                String state=member.optString("state");
++                String status="active".equals(state)?"Доступ разрешён":
++                    ("pending".equals(state)?"Ожидает подтверждения":"Доступ отозван");
++                note(content,name+(address.isEmpty()?"":" · "+address)+" · "+status);
++                if(member.optBoolean("owner"))continue;
++                boolean active="active".equals(state);
++                if(!active && !member.optBoolean("confirmed")){
++                    note(content,"Ожидается подтверждение почты");
++                    continue;
++                }
++                String action=active?"Отозвать доступ":"Подтвердить доступ";
++                Button change=button(action);
++                content.addView(change,new LinearLayout.LayoutParams(-1,dp(50)));
++                change.setOnClickListener(v->new AlertDialog.Builder(this).setTitle(action+"?")
++                    .setMessage(name).setNegativeButton("Отмена",null)
++                    .setPositiveButton(action,(dialog,which)->async(()->api.rpc("mw_family_member_set",
++                        new JSONObject().put("p_user",id).put("p_state",active?"revoked":"active")),ignored->showFamilyOwner())).show());
++                gap(content,8);
++            }
++            JSONArray invitations=data.getJSONArray("invitations");
++            if(invitations.length()>0){gap(content,14);note(content,"Действующие приглашения");}
++            for(int i=0;i<invitations.length();i++){
++                JSONObject row=invitations.getJSONObject(i);
++                String id=row.getString("id");
++                Button cancel=button("Отозвать приглашение для "+row.getString("email"));
++                content.addView(cancel,new LinearLayout.LayoutParams(-1,dp(50)));
++                cancel.setOnClickListener(v->async(()->api.rpc("mw_family_invite_cancel",
++                    new JSONObject().put("p_invite",id)),ignored->showFamilyOwner()));
++                gap(content,8);
++            }
++        });
++    }
++
+     @Override public void onBackPressed(){
+-        if(screen.equals("mfa")||screen.equals("owner")){showTwoFactor();}
++        if(screen.equals("family_owner")){showOwner();}
++        else if(screen.equals("family_pending")){finish();}
++        else if(screen.equals("family_email")){showWelcome();}
++        else if(screen.equals("mfa")||screen.equals("owner")){showTwoFactor();}
+         else if(screen.equals("security")){showSettings();}
+         else if(screen.equals("privacy_blocks")||screen.equals("privacy_contacts")){showSecurity();}
+         else if(screen.equals("chat")){if(voiceRecording){cancelVoiceRecording(true);return;}if(sending){Toast.makeText(this,"Дождитесь отправки сообщения",Toast.LENGTH_SHORT).show();return;}showChats();}
+diff --git a/app/src/main/java/com/muwahid/app/PrivacyActivity.java b/app/src/main/java/com/muwahid/app/PrivacyActivity.java
+--- a/app/src/main/java/com/muwahid/app/PrivacyActivity.java
++++ b/app/src/main/java/com/muwahid/app/PrivacyActivity.java
+@@ -64,7 +64,43 @@
+     void people(String list){screen("blocks".equals(list)?"Чёрный список":"Доверенные контакты");row(card(null),"Добавить пользователя","+",()->addPerson(list));note("Загрузка списка…");call(()->api.rpc("mw_privacy_people",new JSONObject().put("p_list",list)),r->{content.removeAllViews();row(card(null),"Добавить пользователя","+",()->addPerson(list));JSONArray rows=(JSONArray)r;if(rows.length()==0){note("Список пуст");return;}LinearLayout card=card(null);for(int i=0;i<rows.length();i++){JSONObject p=rows.getJSONObject(i);row(card,p.optString("display_name"),p.optString("username"),()->new AlertDialog.Builder(this).setMessage("Удалить "+p.optString("display_name")+" из списка?").setNegativeButton("Отмена",null).setPositiveButton("Удалить",(d,w)->setPerson(list,p.optString("id"),false)).show());}});}
+     void addPerson(String list){EditText input=new EditText(this);input.setSingleLine(true);input.setHint("@имя пользователя");new AlertDialog.Builder(this).setTitle("Добавить пользователя").setView(input).setNegativeButton("Отмена",null).setPositiveButton("Найти",(d,w)->{String query=input.getText().toString().trim();call(()->api.rpc("mw_find_person_any",new JSONObject().put("p_query",query)),r->{if(!(r instanceof JSONObject)){notice("Пользователь не найден");return;}JSONObject p=(JSONObject)r;new AlertDialog.Builder(this).setTitle(p.optString("display_name")).setMessage("@"+p.optString("username")+("blocks".equals(list)?"\nЗаблокировать новые сообщения и звонки?":"\nДобавить в доверенные контакты?" )).setNegativeButton("Отмена",null).setPositiveButton("Добавить",(dialog,which)->setPerson(list,p.optString("id"),true)).show();});}).show();}
+     void setPerson(String list,String id,boolean enabled){call(()->{api.rpc("mw_privacy_person_set",new JSONObject().put("p_list",list).put("p_person",id).put("p_enabled",enabled));return true;},r->people(list));}
+-    void devices(){screen("Устройства");note("Загрузка сеансов…");call(()->api.rpc("mw_sessions_list",new JSONObject()),r->{content.removeAllViews();JSONArray rows=(JSONArray)r;LinearLayout card=card("Сеансы аккаунта");for(int i=0;i<rows.length();i++){JSONObject s=rows.getJSONObject(i);row(card,s.optBoolean("current")?"Это устройство":"Другой сеанс",s.optString("last_active").replace('T',' ').substring(0,Math.min(16,s.optString("last_active").length())),null);}if(rows.length()==0)note("Нет активных сеансов");row(card(null),"Завершить другие сеансы",null,()->new AlertDialog.Builder(this).setMessage("Другим устройствам потребуется повторный вход. Уже выданный токен может действовать до истечения его срока.").setNegativeButton("Отмена",null).setPositiveButton("Завершить",(d,w)->call(()->{api.logoutOthers();return true;},v->devices())).show());});}
++    void devices() {
++        screen("Устройства");
++        note("Загрузка сеансов…");
++        call(()->{
++            boolean family=api.familyGateEnabled();
++            return new JSONObject().put("family",family)
++                    .put("sessions",api.rpc(family?"mw_family_sessions":"mw_sessions_list",new JSONObject()));
++        },r->{
++            content.removeAllViews();
++            JSONObject data=(JSONObject)r;
++            boolean family=data.getBoolean("family");
++            JSONArray sessions=data.getJSONArray("sessions");
++            LinearLayout card=card("Сеансы аккаунта");
++            for(int i=0;i<sessions.length();i++){
++                JSONObject session=sessions.getJSONObject(i);
++                boolean current=session.optBoolean("current");
++                String active=session.optString("last_active").replace('T',' ');
++                String sessionId=session.optString("id");
++                Runnable revoke=null;
++                if(family && !current && !sessionId.isEmpty()){
++                    revoke=()->new AlertDialog.Builder(this).setTitle("Отозвать сеанс?")
++                            .setMessage("Для входа на этом устройстве потребуется снова подтвердить аккаунт.")
++                            .setNegativeButton("Отмена",null)
++                            .setPositiveButton("Отозвать",(d,w)->call(
++                                ()->api.rpc("mw_family_session_revoke",new JSONObject().put("p_session",sessionId)),
++                                ignored->devices())).show();
++                }
++                row(card,current?"Это устройство":"Другой сеанс",active.substring(0,Math.min(16,active.length())),revoke);
++            }
++            if(sessions.length()==0)note("Нет активных сеансов");
++            row(card(null),"Завершить другие сеансы",null,()->new AlertDialog.Builder(this)
++                    .setMessage("Другим устройствам потребуется повторный вход.")
++                    .setNegativeButton("Отмена",null)
++                    .setPositiveButton("Завершить",(d,w)->call(()->{api.logoutOthers();return true;},ignored->devices())).show());
++        });
++    }
++
+     void lockSettings(){new AlertDialog.Builder(this).setTitle("Код-пароль").setMessage("Приложение попросит код блокировки телефона при новом запуске и после минуты в фоне. При включённой защите снимки экрана запрещены. Код хранит только Android.").setNegativeButton("Отмена",null).setPositiveButton(AppLock.enabled(this)?"Выключить":"Включить",(d,w)->{
+         enableLock=!AppLock.enabled(this);KeyguardManager k=(KeyguardManager)getSystemService(KEYGUARD_SERVICE);Intent confirm=k.createConfirmDeviceCredentialIntent("Muwahid",enableLock?"Включить блокировку приложения":"Выключить блокировку приложения");if(confirm==null){notice("Сначала установите PIN, пароль или графический ключ экрана в настройках Android.");return;}startActivityForResult(confirm,9);
+     }).show();}
+diff --git a/app/src/main/java/com/muwahid/app/SecureStore.java b/app/src/main/java/com/muwahid/app/SecureStore.java
+--- a/app/src/main/java/com/muwahid/app/SecureStore.java
++++ b/app/src/main/java/com/muwahid/app/SecureStore.java
+@@ -13,16 +13,21 @@
+
+ final class SecureStore {
+     private final SharedPreferences prefs;
+-    SecureStore(Context context) { prefs = context.getSharedPreferences("session", Context.MODE_PRIVATE); }
++    private final String keyAlias;
++    SecureStore(Context context) { this(context, "session"); }
++    SecureStore(Context context, String name) {
++        prefs = context.getSharedPreferences(name, Context.MODE_PRIVATE);
++        keyAlias = "muwahid." + name;
++    }
+     private SecretKey key() throws Exception {
+         KeyStore store = KeyStore.getInstance("AndroidKeyStore"); store.load(null);
+-        if (!store.containsAlias("muwahid.session")) {
++        if (!store.containsAlias(keyAlias)) {
+             KeyGenerator gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+-            gen.init(new KeyGenParameterSpec.Builder("muwahid.session", KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
++            gen.init(new KeyGenParameterSpec.Builder(keyAlias, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                     .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build());
+             gen.generateKey();
+         }
+-        return (SecretKey) store.getKey("muwahid.session", null);
++        return (SecretKey) store.getKey(keyAlias, null);
+     }
+     synchronized void save(String text) throws Exception {
+         Cipher c = Cipher.getInstance("AES/GCM/NoPadding"); c.init(Cipher.ENCRYPT_MODE, key());
+diff --git a/app/src/main/java/com/muwahid/app/UpdateActivity.java b/app/src/main/java/com/muwahid/app/UpdateActivity.java
+--- a/app/src/main/java/com/muwahid/app/UpdateActivity.java
++++ b/app/src/main/java/com/muwahid/app/UpdateActivity.java
+@@ -2,10 +2,12 @@
+
+ import android.app.Activity;
+ import android.content.Intent;
++import android.content.pm.PackageInfo;
++import android.content.pm.PackageManager;
++import android.content.pm.Signature;
+ import android.graphics.Color;
+ import android.net.Uri;
+ import android.os.Bundle;
+-import android.os.Environment;
+ import android.os.Build;
+ import android.provider.Settings;
+ import android.view.View;
+@@ -20,7 +22,9 @@
+ import java.net.HttpURLConnection;
+ import java.net.URL;
+ import java.security.MessageDigest;
++import java.util.HashSet;
+ import java.util.Locale;
++import java.util.Set;
+ import javax.net.ssl.HttpsURLConnection;
+
+ public final class UpdateActivity extends Activity {
+@@ -28,6 +32,7 @@
+     private TextView status;
+     private ProgressBar progress;
+     private String url, versionName, expectedSha256;
++    private int expectedVersionCode;
+     private volatile boolean busy;
+     private File pendingApk;
+     private static final int REQ_UNKNOWN_SOURCES=4107;
+@@ -35,6 +40,7 @@
+     @Override public void onCreate(Bundle b){
+         super.onCreate(b);
+         versionName=getIntent().getStringExtra("version_name");
++        expectedVersionCode=getIntent().getIntExtra("version_code", -1);
+         url=getIntent().getStringExtra("apk_url");
+         expectedSha256=getIntent().getStringExtra("sha256");
+         String notes=getIntent().getStringExtra("notes");
+@@ -87,21 +93,21 @@
+
+     private void downloadUpdate(){
+         if(busy)return;
+-        if(!validReleaseUrl(url)||expectedSha256==null||!expectedSha256.toLowerCase(Locale.ROOT).matches("[0-9a-f]{64}")){
++        if(expectedVersionCode<=BuildConfig.VERSION_CODE||!validReleaseUrl(url)||expectedSha256==null||!expectedSha256.toLowerCase(Locale.ROOT).matches("[0-9a-f]{64}")){
+             toast("Некорректные данные обновления");return;
+         }
+         busy=true;update.setEnabled(false);progress.setVisibility(View.VISIBLE);status.setText("Скачиваем обновление внутри Muwahid…");
+         new Thread(()->{
+             File tmp=null;
+             try{
+-                File dir=getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+-                if(dir==null)throw new IOException("Папка загрузок недоступна");
++                File dir=new File(getFilesDir(),"updates");
+                 if(!dir.exists()&&!dir.mkdirs())throw new IOException("Не удалось создать папку загрузок");
+-                tmp=new File(dir,"Muwahid-"+safe(versionName)+".apk.part");
++                tmp=File.createTempFile("muwahid-update-", ".apk", dir);
+                 File apk=new File(dir,"Muwahid-"+safe(versionName)+".apk");
+                 download(url,tmp);
+                 String actual=sha256(tmp);
+                 if(!actual.equalsIgnoreCase(expectedSha256))throw new SecurityException("Контрольная сумма APK не совпала");
++                verifyPackage(tmp);
+                 if(apk.exists()&&!apk.delete())throw new IOException("Не удалось заменить старый APK");
+                 if(!tmp.renameTo(apk)){copy(tmp,apk);tmp.delete();}
+                 final File ready=apk;
+@@ -142,9 +148,9 @@
+     private void openInstaller(File apk){
+         busy=false;
+         update.setEnabled(true);
+-        pendingApk=apk;
+         try{
+             if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.O && !getPackageManager().canRequestPackageInstalls()){
++                pendingApk=apk;
+                 status.setText("APK скачан и проверен. Разрешите Muwahid устанавливать обновления на системном экране Android.");
+                 Intent allow=new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+getPackageName()));
+                 startActivityForResult(allow,REQ_UNKNOWN_SOURCES);
+@@ -183,8 +189,10 @@
+     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
+         super.onActivityResult(requestCode,resultCode,data);
+         if(requestCode==REQ_UNKNOWN_SOURCES && pendingApk!=null){
++            File ready=pendingApk;
++            pendingApk=null;
+             if(Build.VERSION.SDK_INT<Build.VERSION_CODES.O || getPackageManager().canRequestPackageInstalls()){
+-                launchInstaller(pendingApk);
++                launchInstaller(ready);
+             }else{
+                 status.setText("Android не разрешил установку обновления. Разрешение можно включить на системном экране и вернуться в Muwahid.");
+                 toast("Нужно разрешение Android на установку обновлений");
+@@ -201,6 +209,35 @@
+         }
+     }
+
++    private void verifyPackage(File file) throws PackageManager.NameNotFoundException {
++        PackageManager pm = getPackageManager();
++        int flags = Build.VERSION.SDK_INT >= 28
++                ? PackageManager.GET_SIGNING_CERTIFICATES : PackageManager.GET_SIGNATURES;
++        PackageInfo candidate = pm.getPackageArchiveInfo(file.getAbsolutePath(), flags);
++        if (candidate == null || !getPackageName().equals(candidate.packageName)) {
++            throw new SecurityException("APK не относится к установленному Muwahid");
++        }
++        long version = Build.VERSION.SDK_INT >= 28 ? candidate.getLongVersionCode() : candidate.versionCode;
++        if (version != expectedVersionCode || !versionName.equals(candidate.versionName)) {
++            throw new SecurityException("Версия APK не соответствует объявленному обновлению");
++        }
++        Set<Signature> installed = currentSigners(pm.getPackageInfo(getPackageName(), flags));
++        if (installed.isEmpty() || !installed.equals(currentSigners(candidate))) {
++            throw new SecurityException("APK подписан другим сертификатом");
++        }
++    }
++
++    private Set<Signature> currentSigners(PackageInfo info) {
++        Signature[] signatures = Build.VERSION.SDK_INT >= 28
++                ? (info.signingInfo == null ? null : info.signingInfo.getApkContentsSigners())
++                : info.signatures;
++        Set<Signature> signers = new HashSet<>();
++        if (signatures != null) {
++            for (Signature signature : signatures) signers.add(signature);
++        }
++        return signers;
++    }
++
+     private boolean validReleaseUrl(String value){
+         if(value==null)return false;
+         final String prefix="https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/";
+diff --git a/app/src/main/java/com/muwahid/app/UpdateManager.java b/app/src/main/java/com/muwahid/app/UpdateManager.java
+--- a/app/src/main/java/com/muwahid/app/UpdateManager.java
++++ b/app/src/main/java/com/muwahid/app/UpdateManager.java
+@@ -135,6 +135,7 @@
+
+     private static Intent updateIntent(Context context,Release r){
+         return new Intent(context,UpdateActivity.class)
++                .putExtra("version_code",r.versionCode)
+                 .putExtra("version_name",r.versionName)
+                 .putExtra("apk_url",r.apkUrl)
+                 .putExtra("sha256",r.sha256)
+diff --git a/app/src/main/res/xml/file_paths.xml b/app/src/main/res/xml/file_paths.xml
+--- a/app/src/main/res/xml/file_paths.xml
++++ b/app/src/main/res/xml/file_paths.xml
+@@ -1,5 +1,5 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <paths xmlns:android="http://schemas.android.com/apk/res/android">
+     <cache-path name="media" path="media/" />
+-    <external-files-path name="updates" path="Download/" />
++    <files-path name="updates" path="updates/" />
+ </paths>
