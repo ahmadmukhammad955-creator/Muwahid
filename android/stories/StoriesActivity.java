@@ -432,6 +432,56 @@ public final class StoriesActivity extends Activity {
           })).show();
     }
     private void chooseStoryFile(){
+        if(checkingStoryAudience)return;
+        checkingStoryAudience=true;
+        TextView pending=text("Проверяем доступ проверенных контактов…",15,white());
+        pending.setPadding(dp(20),dp(18),dp(20),dp(18));
+        AlertDialog dialog=new AlertDialog.Builder(this)
+            .setTitle("Новая история").setView(pending).setCancelable(false).create();
+        dialog.show();
+        io.execute(()->{
+            try{
+                JSONArray chats=(JSONArray)api.rpc("mw_chat_list",new JSONObject());
+                String uid=api.uid();int verified=0;
+                HashSet<String> added=new HashSet<>();
+                for(int i=0;i<chats.length()&&verified<200;i++){
+                    JSONObject chat=chats.optJSONObject(i);
+                    if(chat==null)continue;
+                    String id=chat.optString("id","");
+                    String person=chat.optString("person_id","");
+                    if(id.isEmpty()||person.isEmpty()||!added.add(person))continue;
+                    Object key=api.rpc("mw_e2ee_peer_key",new JSONObject().put("p_chat",id));
+                    String publicKey=key instanceof String?(String)key:"";
+                    if(!publicKey.isEmpty()&&crypto.isPeerVerified(uid,id,publicKey))verified++;
+                }
+                final int count=verified;
+                ui.post(()->{
+                    checkingStoryAudience=false;
+                    dialog.dismiss();
+                    if(destroyed||isFinishing())return;
+                    if(count==0){
+                        new AlertDialog.Builder(this)
+                            .setTitle("Пока нет получателей")
+                            .setMessage("Для защищённой публикации нужен хотя бы один контакт с подтверждённым ключом. Откройте личный чат, сверьте код безопасности с собеседником и подтвердите ключ. После этого можно опубликовать историю.")
+                            .setNegativeButton("Закрыть",null)
+                            .setPositiveButton("Перейти к чатам",(d,w)->finish())
+                            .show();
+                        return;
+                    }
+                    new AlertDialog.Builder(this)
+                        .setTitle("Кто увидит историю")
+                        .setMessage("Получатели: "+count+" проверенных контактов. Фото или видео будет зашифровано на телефоне и станет недоступно контактам через 24 часа. Вы сможете открыть его в личном архиве.")
+                        .setNegativeButton("Отмена",null)
+                        .setPositiveButton("Выбрать файл",(d,w)->openStoryPicker())
+                        .show();
+                });
+            }catch(Exception err){
+                ui.post(()->{checkingStoryAudience=false;dialog.dismiss();});
+                error(err);
+            }
+        });
+    }
+    private void openStoryPicker(){
         Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("*/*");
         i.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"image/jpeg","image/png","image/webp","video/mp4","video/webm"});
