@@ -17,7 +17,7 @@ def main():
         java = root / "app/src/main/java/com/muwahid/app/MainActivity.java"
         manifest = root / "app/src/main/AndroidManifest.xml"
         java.parent.mkdir(parents=True)
-        manifest.parent.mkdir(parents=True)
+        manifest.parent.mkdir(parents=True, exist_ok=True)
         java.write_text(
             'class MainActivity {\n'
             '  void chooseStickerImportTarget(){\n'
