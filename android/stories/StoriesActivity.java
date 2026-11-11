@@ -320,10 +320,10 @@ public final class StoriesActivity extends Activity {
         LinearLayout actions=horizontal();
         LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(73));
         ap.topMargin=dp(22);body.addView(actions,ap);
-        addQuickAction(actions,"◯","Чат",()->finish(),true);
-        addQuickAction(actions,"♧","Звонок",()->startContactCall("audio"),!self);
-        addQuickAction(actions,"▣","Видео",()->startContactCall("video"),!self);
-        addQuickAction(actions,"➦","Поделиться",this::shareContact,true);
+        addQuickAction(actions,"chat","Чат",()->finish(),true);
+        addQuickAction(actions,"call","Звонок",()->startContactCall("audio"),!self);
+        addQuickAction(actions,"video","Видео",()->startContactCall("video"),!self);
+        addQuickAction(actions,"share","Поделиться",this::shareContact,true);
 
         LinearLayout heading=horizontal();
         LinearLayout.LayoutParams headingP=new LinearLayout.LayoutParams(-1,dp(63));
@@ -356,7 +356,14 @@ public final class StoriesActivity extends Activity {
         tile.setAlpha(enabled?1f:.35f);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(71),1);
         lp.setMargins(dp(3),0,dp(3),0);parent.addView(tile,lp);
-        TextView icon=visualText(symbol,27,FG,false);icon.setGravity(Gravity.CENTER);
+        ImageView icon=new ImageView(this);
+        int image="call".equals(symbol)?android.R.drawable.ic_menu_call:
+                  "video".equals(symbol)?android.R.drawable.ic_menu_camera:
+                  "share".equals(symbol)?android.R.drawable.ic_menu_share:
+                  android.R.drawable.ic_dialog_email;
+        icon.setImageResource(image);
+        icon.setColorFilter(FG);
+        icon.setPadding(dp(8),dp(4),dp(8),dp(4));
         tile.addView(icon,new LinearLayout.LayoutParams(-1,dp(34)));
         TextView labelText=visualText(label,12,FG,false);
         labelText.setGravity(Gravity.CENTER);
