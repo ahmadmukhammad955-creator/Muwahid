@@ -343,7 +343,6 @@ public final class StoriesActivity extends Activity {
         addQuickAction(actions,"chat","Чат",()->finish(),true);
         addQuickAction(actions,"call","Звонок",()->startContactCall("audio"),!self);
         addQuickAction(actions,"video","Видео",()->startContactCall("video"),!self);
-        addQuickAction(actions,"share","Поделиться",this::shareContact,true);
 
         LinearLayout heading=horizontal();
         LinearLayout.LayoutParams headingP=new LinearLayout.LayoutParams(-1,dp(47));
