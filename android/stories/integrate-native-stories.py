@@ -95,9 +95,14 @@ one(MAIN,anchor,append+anchor)
 # flow; they do not merely display a button.
 needle='super.onActivityResult(requestCode,resultCode,data);'
 one(MAIN,needle,needle+'''if(requestCode==REQ_CONTACT_STORIES){
-            if(resultCode==RESULT_OK&&data!=null&&!notesMode&&"chat".equals(screen)){
-                String mode=data.getStringExtra("contact_call_kind");
-                if("audio".equals(mode)||"video".equals(mode))startCall(mode);
+            if(resultCode==RESULT_OK&&data!=null){
+                if(data.getBooleanExtra("open_profile_settings",false)){
+                    showAccountSettings();return;
+                }
+                if(!notesMode&&"chat".equals(screen)){
+                    String mode=data.getStringExtra("contact_call_kind");
+                    if("audio".equals(mode)||"video".equals(mode))startCall(mode);
+                }
             }
             return;
         }''')
