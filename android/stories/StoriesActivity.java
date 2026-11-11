@@ -354,15 +354,19 @@ public final class StoriesActivity extends Activity {
         LinearLayout details=vertical();details.setBackground(rounded(0xFF131E29,18));
         LinearLayout.LayoutParams detailsP=new LinearLayout.LayoutParams(-1,-2);
         detailsP.topMargin=dp(21);body.addView(details,detailsP);
-        if(!bio.isEmpty()){
-            addInfoRow(details,"♙","О себе",bio,()->new AlertDialog.Builder(this)
-              .setTitle("О себе").setMessage(bio).setPositiveButton("Закрыть",null).show());
+        if(self||!bio.isEmpty()){
+            addInfoRow(details,"♙","О себе",bio,
+                self?this::editOwnProfile:()->new AlertDialog.Builder(this)
+                  .setTitle("О себе").setMessage(bio)
+                  .setPositiveButton("Закрыть",null).show());
         }
-        // Profile actions work with real records; do not invent counts or sections.
+        // Display only actions backed by an actual Android or server operation.
         if(self){
-            addInfoRow(details,"✎","Изменить профиль","",()->editOwnProfile());
+            addInfoRow(details,"✎","Изменить профиль","",this::editOwnProfile);
+            addInfoRow(details,"◇","Конфиденциальность","",this::openAccountSettings);
+            addInfoRow(details,"⚙","Настройки профиля","",this::openAccountSettings);
         }else{
-            addInfoRow(details,"♢","Конфиденциальность","",this::confirmBlock);
+            addInfoRow(details,"♢","Блокировка контакта","",this::confirmBlock);
         }
     }
     private void editOwnProfile(){
@@ -400,6 +404,12 @@ public final class StoriesActivity extends Activity {
             });
         }));
         dialog.show();
+    }
+    private void openAccountSettings(){
+        Intent intent=new Intent();
+        intent.putExtra("open_profile_settings",true);
+        setResult(RESULT_OK,intent);
+        finish();
     }
     private void startContactCall(String kind){
         Intent result=new Intent();result.putExtra("contact_call_kind",kind);
