@@ -1,4 +1,4 @@
-name: Build Muwahid APK 0.13.43
+name: Build Muwahid APK 0.13.44
 
 on:
   workflow_dispatch:
@@ -25,8 +25,8 @@ jobs:
     env:
       PROJECT_ZIP: Muwahid_0.13.37_PROFILE_QR.zip
       BUNDLE_ZIP: Muwahid_0.13.37_PROFILE_QR.zip
-      EXPECTED_VERSION_NAME: '0.13.43'
-      EXPECTED_VERSION_CODE: '78'
+      EXPECTED_VERSION_NAME: '0.13.44'
+      EXPECTED_VERSION_CODE: '79'
 
     steps:
       - uses: actions/checkout@v4
@@ -245,7 +245,7 @@ jobs:
         if: ${{ always() && env.MUWAHID_STABLE_SIGNING != 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.43-debug-apk
+          name: Muwahid-0.13.44-debug-apk
           path: Muwahid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: warn
 
@@ -253,7 +253,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.43
+          name: Muwahid-APK-0.13.44
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -261,7 +261,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.43-device-check
+          name: Muwahid-0.13.44-device-check
           path: |
             screenshots/
             smoke-result.txt
@@ -276,7 +276,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Publish signed update
-        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.publish == true) || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Publish signed Muwahid 0.13.43'))) && github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
+        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.publish == true) || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Publish signed Muwahid 0.13.44'))) && github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -295,7 +295,7 @@ jobs:
           cp "$APK" "$RELEASE_APK"
           SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
           TAG="v${EXPECTED_VERSION_NAME}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Corrected native story profile layout, Android 15 system insets, encrypted story previews and verified-audience publication UX. Preserves chats and sessions."
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Native profile with three actions, persisted avatar and cover photo, Android 15 compatibility and private story archive. Preserves chats and sessions."
           gh release upload "$TAG" "$RELEASE_APK"
           mkdir -p updates
           jq -n \
@@ -303,7 +303,7 @@ jobs:
             --arg versionName "$EXPECTED_VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Исправлены профиль и истории: оформление, расположение на Android 15, миниатюры, публикация для проверенных контактов и архив. Чаты и данные сохраняются." \
+            --arg notes "Профиль с тремя кнопками, загрузкой фотографий и обложки, архивом историй; сохранены чаты и пользовательские данные." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
           # Keep metadata from THIS APK, but update from the latest remote main.
           cp updates/latest.json "$RUNNER_TEMP/muwahid-latest.json"
