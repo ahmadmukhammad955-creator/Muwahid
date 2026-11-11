@@ -28,6 +28,7 @@ public final class StoriesActivity extends Activity {
     private static final int ARCHIVE_PAGE_SIZE=50;
     private boolean archiveMode=false,archiveHasMore=false,archiveLoading=false;
     private boolean archiveScreen=false;
+    private int feedRequestSerial=0;
     private int archiveOffset=0,archiveSavedScroll=-1,archiveRequestSerial=0;
     private final android.util.LruCache<String,Bitmap> thumbnailCache=
         new android.util.LruCache<String,Bitmap>(12*1024*1024){
@@ -74,7 +75,7 @@ public final class StoriesActivity extends Activity {
         if(profileChatId==null)profileChatId="";
         if(personId==null)personId="";
         if(personName==null)personName="";
-        archiveScreen=profileChatId.isEmpty();
+        archiveScreen=in.getBooleanExtra("archive",false);
         getWindow().setStatusBarColor(Color.rgb(8,16,29));
         getWindow().setNavigationBarColor(Color.rgb(8,16,29));
         renderFeed();
@@ -108,19 +109,31 @@ public final class StoriesActivity extends Activity {
     }
     private void reload(){
         if(archiveMode){loadArchive(false);return;}
+        final boolean renderArchive=archiveScreen;
+        final int request=++feedRequestSerial;
         backgroundWork(()->{
             JSONObject profile=new JSONObject();
-            if(!archiveScreen&&!profileChatId.isEmpty()){
-                profile=(JSONObject)api.rpc("mw_contact_profile",new JSONObject().put("p_chat",profileChatId));
+            String targetPerson=api.uid();
+            if(!renderArchive){
+                if(profileChatId.isEmpty()){
+                    profile=(JSONObject)api.rpc("mw_self_profile",new JSONObject());
+                }else{
+                    profile=(JSONObject)api.rpc("mw_contact_profile",
+                        new JSONObject().put("p_chat",profileChatId));
+                    targetPerson=personId.isEmpty()?profile.optString("id",""):personId;
+                }
             }
-            String targetPerson=archiveScreen?api.uid():(personId.isEmpty()?profile.optString("id",""):personId);
             JSONObject args=new JSONObject();
             args.put("p_person",targetPerson.isEmpty()?JSONObject.NULL:targetPerson);
             JSONArray entries=(JSONArray)api.rpc("mw_story_feed",args);
             final JSONObject target=profile;
-            ui.post(()->{if(destroyed||archiveMode)return;contact=target;feed=entries;
-                if(personId.isEmpty()&&!archiveScreen)personId=targetPerson;
-                renderFeed();});
+            final String selectedPerson=targetPerson;
+            ui.post(()->{
+                if(destroyed||archiveMode||archiveScreen!=renderArchive||request!=feedRequestSerial)return;
+                contact=target;feed=entries;
+                if(personId.isEmpty()&&!profileChatId.isEmpty())personId=selectedPerson;
+                renderFeed();
+            });
         });
     }
     private void loadArchive(boolean append){
@@ -183,18 +196,20 @@ public final class StoriesActivity extends Activity {
     }
     private void openArchiveScreen(){
         archiveScreen=true; archiveMode=false; archiveOffset=0;archiveSavedScroll=-1;
+        feedRequestSerial++;
         archiveRequestSerial++;archiveLoading=false;archiveHasMore=false;
         feed=new JSONArray();renderFeed();reload();
     }
     private void selectArchiveTab(boolean archive){
         if(archiveMode==archive)return;
-        archiveMode=archive;archiveRequestSerial++;archiveLoading=false;
+        archiveMode=archive;archiveRequestSerial++;feedRequestSerial++;archiveLoading=false;
         archiveOffset=0;archiveHasMore=false;archiveSavedScroll=-1;
         feed=new JSONArray();renderFeed();reload();
     }
     private void returnFromScreen(){
-        if(archiveScreen&&!profileChatId.isEmpty()){
-            archiveScreen=false;archiveMode=false;feed=new JSONArray();renderFeed();reload();
+        if(archiveScreen){
+            archiveScreen=false;archiveMode=false;feedRequestSerial++;archiveRequestSerial++;
+            feed=new JSONArray();renderFeed();reload();
         }else finish();
     }
     private TextView simpleIcon(String value,String hint){
@@ -334,7 +349,7 @@ public final class StoriesActivity extends Activity {
         archiveLink.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
         heading.addView(archiveLink,new LinearLayout.LayoutParams(dp(96),dp(44)));
         archiveLink.setOnClickListener(v->openArchiveScreen());
-        renderStoryStrip(body);
+        renderStoryStrip(body,self);
         String bio=contact.optString("bio","");
         LinearLayout details=vertical();details.setBackground(rounded(0xFF131E29,18));
         LinearLayout.LayoutParams detailsP=new LinearLayout.LayoutParams(-1,-2);
@@ -343,8 +358,48 @@ public final class StoriesActivity extends Activity {
             addInfoRow(details,"♙","О себе",bio,()->new AlertDialog.Builder(this)
               .setTitle("О себе").setMessage(bio).setPositiveButton("Закрыть",null).show());
         }
-        // Show a real action only where the existing backend provides one.
-        if(!self)addInfoRow(details,"♢","Конфиденциальность","",this::confirmBlock);
+        // Profile actions work with real records; do not invent counts or sections.
+        if(self){
+            addInfoRow(details,"✎","Изменить профиль","",()->editOwnProfile());
+        }else{
+            addInfoRow(details,"♢","Конфиденциальность","",this::confirmBlock);
+        }
+    }
+    private void editOwnProfile(){
+        String existingName=contact.optString("display_name","");
+        String existingUsername=contact.optString("username","");
+        String existingBio=contact.optString("bio","");
+        LinearLayout inputs=vertical();
+        inputs.setPadding(dp(18),dp(8),dp(18),0);
+        EditText name=new EditText(this);name.setSingleLine(true);
+        name.setHint("Имя");name.setText(existingName);inputs.addView(name);
+        EditText username=new EditText(this);username.setSingleLine(true);
+        username.setHint("Имя пользователя");username.setText(existingUsername);inputs.addView(username);
+        EditText bio=new EditText(this);bio.setSingleLine(false);bio.setMaxLines(3);
+        bio.setHint("О себе");bio.setText(existingBio);inputs.addView(bio);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Изменить профиль")
+            .setView(inputs).setNegativeButton("Отмена",null)
+            .setPositiveButton("Сохранить",null).create();
+        dialog.setOnShowListener(unused->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            String newName=name.getText().toString().trim();
+            String newUser=username.getText().toString().trim();
+            String newBio=bio.getText().toString().trim();
+            if(newName.isEmpty()){name.setError("Укажите имя");return;}
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+            backgroundWork(()->{
+                try{
+                    api.rpc("mw_update_profile_extended",
+                        new JSONObject().put("p_name",newName)
+                            .put("p_username",newUser).put("p_bio",newBio));
+                    ui.post(()->{if(destroyed)return;dialog.dismiss();reload();});
+                }catch(Exception err){
+                    ui.post(()->{if(!destroyed&&dialog.isShowing())
+                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);});
+                    throw err;
+                }
+            });
+        }));
+        dialog.show();
     }
     private void startContactCall(String kind){
         Intent result=new Intent();result.putExtra("contact_call_kind",kind);
@@ -396,11 +451,12 @@ public final class StoriesActivity extends Activity {
         LinearLayout.LayoutParams d=new LinearLayout.LayoutParams(-1,dp(1));
         d.leftMargin=dp(61);parent.addView(divider,d);
     }
-    private void renderStoryStrip(LinearLayout body){
+    private void renderStoryStrip(LinearLayout body,boolean ownProfile){
         HorizontalScrollView scroll=new HorizontalScrollView(this);
         scroll.setHorizontalScrollBarEnabled(false);scroll.setFillViewport(false);
         LinearLayout row=horizontal();row.setPadding(0,dp(2),dp(5),dp(2));
         scroll.addView(row);body.addView(scroll,new LinearLayout.LayoutParams(-1,dp(145)));
+        if(ownProfile){
         FrameLayout add=new FrameLayout(this);
         add.setBackground(rounded(PANEL,16));
         LinearLayout.LayoutParams addP=new LinearLayout.LayoutParams(dp(95),dp(139));
@@ -414,6 +470,7 @@ public final class StoriesActivity extends Activity {
         FrameLayout.LayoutParams labelP=new FrameLayout.LayoutParams(-1,dp(50),Gravity.BOTTOM);
         add.addView(addLabel,labelP);
         add.setOnClickListener(v->chooseStoryFile());
+        }
         for(int i=0;i<feed.length();i++){
             JSONObject story=feed.optJSONObject(i);if(story==null)continue;
             final int index=i;
