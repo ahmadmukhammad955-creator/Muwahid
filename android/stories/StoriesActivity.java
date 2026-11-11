@@ -182,14 +182,17 @@ public final class StoriesActivity extends Activity {
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(0,dp(48),1);
         tp.leftMargin=dp(10);tp.rightMargin=dp(7);bar.addView(title,tp);
-        TextView archive=button(archiveMode?"Истории":"Архив");
-        archive.setTextSize(13);archive.setPadding(dp(11),0,dp(11),0);
-        archive.setContentDescription(archiveMode?"Вернуться к историям":"Открыть личный архив");
-        bar.addView(archive,new LinearLayout.LayoutParams(-2,dp(44)));
-        archive.setOnClickListener(v->{
-            archiveMode=!archiveMode;archiveRequestSerial++;archiveLoading=false;archiveOffset=0;archiveHasMore=false;
-            archiveSavedScroll=-1;feed=new JSONArray();renderFeed();reload();
-        });
+        // The private archive belongs to the current user, not to a contact's profile.
+        if(profileChatId.isEmpty()||archiveMode){
+            TextView archive=button(archiveMode?"Истории":"Архив");
+            archive.setTextSize(13);archive.setPadding(dp(11),0,dp(11),0);
+            archive.setContentDescription(archiveMode?"Вернуться к историям":"Открыть личный архив");
+            bar.addView(archive,new LinearLayout.LayoutParams(-2,dp(44)));
+            archive.setOnClickListener(v->{
+                archiveMode=!archiveMode;archiveRequestSerial++;archiveLoading=false;archiveOffset=0;archiveHasMore=false;
+                archiveSavedScroll=-1;feed=new JSONArray();renderFeed();reload();
+            });
+        }
         TextView refresh=toolbarIcon("↻","Обновить истории");
         LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(dp(44),dp(44));
         rp.leftMargin=dp(6);bar.addView(refresh,rp);
@@ -207,35 +210,26 @@ public final class StoriesActivity extends Activity {
         }
 
         if(!archiveMode&&!profileChatId.isEmpty())renderContact(body);
-        TextView section=text(archiveMode?"Завершённые истории":(profileChatId.isEmpty()?"Истории и публикации":"Публикации · 24 часа"),19,white());
-        section.setTypeface(null,1);section.setPadding(dp(2),dp(17),0,dp(4));
+        TextView section=text(archiveMode?"Архив":"Истории",19,white());
+        section.setTypeface(null,1);section.setPadding(dp(2),dp(15),0,dp(12));
         body.addView(section);
-        TextView sub=text(archiveMode?"Приватный архив. Просматриваете только вы.":"Фото и видео хранятся в зашифрованном виде. Доступ — у проверенных контактов.",13,mutedColor());
-        sub.setPadding(dp(2),0,dp(2),dp(13));body.addView(sub);
 
-        if(!archiveMode){
-            TextView add=button("＋  Создать историю");
-            add.setTextSize(16);add.setTypeface(null,1);
-            add.setBackground(rounded(Color.rgb(15,135,117),16));
-            add.setContentDescription("Выбрать фото или видео и опубликовать историю");
-            body.addView(add,new LinearLayout.LayoutParams(-1,dp(54)));
+        // Publishing is an action in MY stories, not inside somebody else's profile.
+        if(!archiveMode&&profileChatId.isEmpty()){
+            TextView add=button("＋  Добавить историю");
+            add.setTextSize(15);add.setTypeface(null,1);
+            add.setBackground(rounded(Color.rgb(15,135,117),14));
+            add.setContentDescription("Выбрать фото или видео для своей истории");
+            body.addView(add,new LinearLayout.LayoutParams(-1,dp(48)));
             add.setOnClickListener(v->chooseStoryFile());
-            TextView limit=text("Фото или видео до 60 секунд · до 25 МБ",12,mutedColor());
-            limit.setPadding(dp(4),dp(10),dp(4),dp(17));body.addView(limit);
         }
 
         if(feed.length()==0){
-            LinearLayout empty=vertical();
-            empty.setPadding(dp(19),dp(23),dp(19),dp(24));
-            empty.setBackground(rounded(surfaceColor(),18));
-            TextView emptyTitle=text(archiveMode?"Архив пока пуст":(archiveLoading?"Загружаем истории…":"Историй пока нет"),17,white());
-            emptyTitle.setTypeface(null,1);empty.addView(emptyTitle);
-            TextView detail=text(archiveMode?
-                "Через 24 часа ваши публикации переместятся сюда. Они останутся доступны только вам.":
-                "Создайте историю. Если контакт ещё не подтвердил ключ безопасности, приложение объяснит, что нужно сделать.",14,mutedColor());
-            detail.setPadding(0,dp(7),0,0);empty.addView(detail);
+            TextView empty=text(archiveMode?"Архив пуст":(archiveLoading?"Загрузка…":"Пока нет историй"),15,mutedColor());
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(dp(12),dp(29),dp(12),dp(26));
             LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-1,-2);
-            ep.topMargin=dp(8);body.addView(empty,ep);
+            ep.topMargin=dp(7);body.addView(empty,ep);
         }else renderStoryGrid(body);
 
         if(archiveMode&&archiveHasMore){
@@ -279,6 +273,22 @@ public final class StoriesActivity extends Activity {
         String status=self?"Мой профиль":contact.optBoolean("online",false)?"В сети":"Был(а) недавно";
         TextView state=text(status,13,self?accentColor():mutedColor());
         state.setPadding(0,dp(5),0,0);details.addView(state);
+        TextView more=toolbarIcon("⋮","Действия с профилем");
+        LinearLayout.LayoutParams menuParams=new LinearLayout.LayoutParams(dp(40),dp(42));
+        menuParams.leftMargin=dp(4);
+        identity.addView(more,menuParams);
+        more.setOnClickListener(v->{
+            PopupMenu menu=new PopupMenu(this,more);
+            menu.getMenu().add(0,1,0,"Поделиться");
+            if(!self)menu.getMenu().add(0,2,1,
+                contact.optBoolean("blocked_by_me",false)?"Разблокировать":"Заблокировать");
+            menu.setOnMenuItemClickListener(item->{
+                if(item.getItemId()==1){shareContact();return true;}
+                if(item.getItemId()==2&&!self){confirmBlock();return true;}
+                return false;
+            });
+            menu.show();
+        });
         card.addView(identity);
 
         String bio=contact.optString("bio","");
@@ -309,25 +319,12 @@ public final class StoriesActivity extends Activity {
             }
             card.addView(actions);
         }
-        LinearLayout opts=horizontal();opts.setPadding(0,dp(10),0,0);
-        TextView share=button("Поделиться");
-        share.setTextSize(13);share.setBackground(rounded(Color.rgb(25,46,65),12));
-        opts.addView(share,new LinearLayout.LayoutParams(0,dp(43),1));
-        share.setOnClickListener(v->shareContact());
-        if(!self){
-            TextView block=button(contact.optBoolean("blocked_by_me",false)?"Разблокировать":"Заблокировать");
-            block.setTextSize(13);block.setBackground(rounded(Color.rgb(25,46,65),12));
-            LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(43),1);
-            bp.leftMargin=dp(9);opts.addView(block,bp);
-            block.setOnClickListener(v->confirmBlock());
-        }
-        card.addView(opts);
         body.addView(card);
     }
     private void renderStoryGrid(LinearLayout body){
         android.widget.GridLayout gallery=new android.widget.GridLayout(this);
-        gallery.setColumnCount(2);
-        int tile=Math.max(dp(110),(getResources().getDisplayMetrics().widthPixels-dp(44))/2);
+        gallery.setColumnCount(3);
+        int tile=Math.max(dp(86),(getResources().getDisplayMetrics().widthPixels-dp(44))/3);
         int count=Math.min(feed.length(),48);
         for(int i=0;i<count;i++){
             final int index=i;
@@ -343,26 +340,15 @@ public final class StoriesActivity extends Activity {
             TextView fallback=text("▧",31,mutedColor());
             fallback.setGravity(Gravity.CENTER);
             tileView.addView(fallback,new FrameLayout.LayoutParams(-1,-1));
-            View shade=new View(this);
-            shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0x00000000,0x88040C16,0xDD040C16}));
-            FrameLayout.LayoutParams sh=new FrameLayout.LayoutParams(-1,dp(84),Gravity.BOTTOM);
-            tileView.addView(shade,sh);
-            LinearLayout over=vertical();over.setGravity(Gravity.BOTTOM);
-            over.setPadding(dp(11),dp(8),dp(8),dp(10));
-            TextView display=text(story.optString("display_name","История"),14,white());
-            display.setTypeface(null,1);
-            display.setSingleLine(true);display.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            over.addView(display);
-            String stamp=story.optString("created_at","");
-            stamp=stamp.substring(0,Math.min(10,stamp.length()));
-            String meta=("video".equals(story.optString("media_kind"))?"▶ Видео":"▧ Фото")
-                +(story.optBoolean("visible_on_profile",false)?" · Закреплена":"")
-                +(stamp.isEmpty()?"":" · "+stamp);
-            TextView line=text(meta,11,Color.rgb(214,228,237));
-            line.setSingleLine(true);line.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            over.addView(line);
-            tileView.addView(over,new FrameLayout.LayoutParams(-1,dp(72),Gravity.BOTTOM));
+            // Keep the gallery image-first; only videos need a compact overlay.
+            if("video".equals(story.optString("media_kind"))){
+                TextView play=text("▶",18,white());
+                play.setGravity(Gravity.CENTER);
+                play.setBackground(rounded(0x99081220,20));
+                FrameLayout.LayoutParams mark=new FrameLayout.LayoutParams(dp(34),dp(34),Gravity.TOP|Gravity.RIGHT);
+                mark.setMargins(0,dp(6),dp(6),0);
+                tileView.addView(play,mark);
+            }
             android.widget.GridLayout.LayoutParams gp=new android.widget.GridLayout.LayoutParams();
             gp.width=tile;gp.height=tile*6/5;
             gp.setMargins(dp(2),dp(2),dp(2),dp(2));
