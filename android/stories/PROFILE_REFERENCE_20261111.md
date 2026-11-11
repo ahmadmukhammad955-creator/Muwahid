@@ -18,12 +18,14 @@ This document locks the requirements of the TWO user-supplied smartphone screens
 - Three-column, rounded portrait-thumbnail grid with a narrow gutter, time marker (hours/days) in top right, genuine view counts only when available at bottom. Image shows six example cards (3 × 2), but data must come from the signed-in user's account; no fabricated cards/counters.
 - Preserve real encrypted story access and private archive semantics, including empty/loading/error states.
 
-## Deferred at user's explicit request
-- Interactive **replace circle avatar** and **replace cover photograph** are required features, but user said "будем потом" on 2026-11-11; don't mix this work into the current density/layout patch.
-- Avatar/cover currently not provided by mw_self_profile and need a secure owner-only upload/storage/update pipeline before claiming they work.
+## Required: real account photographs and replacement controls (NOT deferred or removed)
+- **Both must be supported** on the owner's profile: a real circular account photo (avatar) and a real background cover photo, with the ability for the account owner to change each independently.
+- User explicitly corrected the earlier interpretation on 2026-11-11: "потом будем это добавить" was NOT a request to defer, cancel or remove functionality. Add these controls as part of the current work if they can be built safely and fully; otherwise retain them as explicit open release requirements, never mark as user-deferred.
+- The user must be able to select a new image, preview/crop where appropriate, authenticate/authorize the change, persist the image, and see the saved result after reopening the app; ensure correct data access and cross-device rendering. No fake placeholder button, no hardcoded third-party avatar or cover.
+- Current `mw_self_profile` does not yet expose the needed media; first implement/verify secure owner-only upload, storage, profile update, retrieval and Android media permissions as applicable. Do not claim complete before integration and device tests.
 
 ## Current reality and release gate
 - Layout density adjustments and self-profile identification are implemented in StoriesActivity.java in the branch of this requirement.
-- Missing real media/file/link and shared-contact destinations, as well as real stored avatar/cover and QR action, are NOT declared implemented.
+- Missing real media/file/link and shared-contact destinations, as well as real stored avatar/cover, their change controls and QR action, are NOT declared implemented. Avatar and cover changes remain REQUIRED, not deferred.
 - CI must compile; Android 10 and Android 15 UI tests must pass. Owner's screenshots must be visually compared against the reference on an actual device.
 - Do not merge/release an APK claiming pixel-perfect parity or full functions before these are verified. Previous signed 0.13.43 is unaffected by this PR until merged and rebuilt.
