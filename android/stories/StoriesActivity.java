@@ -250,6 +250,11 @@ public final class StoriesActivity extends Activity {
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams titleP=new LinearLayout.LayoutParams(0,dp(46),1);
         titleP.leftMargin=dp(8);bar.addView(title,titleP);
+        if(!archiveScreen&&profileChatId.isEmpty()){
+            TextView edit=simpleIcon("✎","Изменить профиль");
+            bar.addView(edit,new LinearLayout.LayoutParams(dp(42),dp(46)));
+            edit.setOnClickListener(v->editOwnProfile());
+        }
         TextView more=simpleIcon("⋮","Меню");
         bar.addView(more,new LinearLayout.LayoutParams(dp(42),dp(46)));
         more.setOnClickListener(this::openProfileMenu);
@@ -421,14 +426,53 @@ public final class StoriesActivity extends Activity {
         tile.setAlpha(enabled?1f:.35f);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(71),1);
         lp.setMargins(dp(3),0,dp(3),0);parent.addView(tile,lp);
-        ImageView icon=new ImageView(this);
-        int image="call".equals(symbol)?android.R.drawable.ic_menu_call:
-                  "video".equals(symbol)?android.R.drawable.ic_menu_camera:
-                  "share".equals(symbol)?android.R.drawable.ic_menu_share:
-                  android.R.drawable.ic_dialog_email;
-        icon.setImageResource(image);
-        icon.setColorFilter(FG);
-        icon.setPadding(dp(8),dp(4),dp(8),dp(4));
+        View icon=new View(this){
+            final Paint pen=new Paint(Paint.ANTI_ALIAS_FLAG);
+            @Override protected void onDraw(Canvas canvas){
+                super.onDraw(canvas);
+                float u=dp(1);
+                canvas.save();
+                canvas.translate(getWidth()/2f-12*u,getHeight()/2f-12*u);
+                pen.setColor(FG);pen.setStyle(Paint.Style.STROKE);
+                pen.setStrokeWidth(2.1f*u);pen.setStrokeCap(Paint.Cap.ROUND);
+                pen.setStrokeJoin(Paint.Join.ROUND);
+                Path outline=new Path();
+                if("chat".equals(symbol)){
+                    canvas.drawRoundRect(new RectF(2*u,3*u,22*u,19*u),6*u,6*u,pen);
+                    outline.moveTo(6*u,18*u);
+                    outline.lineTo(4*u,23*u);
+                    outline.lineTo(11*u,19*u);
+                    canvas.drawPath(outline,pen);
+                }else if("call".equals(symbol)){
+                    outline.moveTo(6*u,3*u);
+                    outline.cubicTo(1*u,5*u,4*u,12*u,9*u,17*u);
+                    outline.cubicTo(14*u,22*u,20*u,24*u,22*u,19*u);
+                    outline.lineTo(17*u,15*u);
+                    outline.lineTo(14*u,18*u);
+                    outline.cubicTo(10*u,17*u,7*u,14*u,6*u,10*u);
+                    outline.lineTo(9*u,7*u);
+                    outline.close();
+                    canvas.drawPath(outline,pen);
+                }else if("video".equals(symbol)){
+                    canvas.drawRoundRect(new RectF(2*u,5*u,16*u,19*u),3*u,3*u,pen);
+                    outline.moveTo(16*u,10*u);
+                    outline.lineTo(23*u,6*u);
+                    outline.lineTo(23*u,18*u);
+                    outline.lineTo(16*u,14*u);
+                    canvas.drawPath(outline,pen);
+                }else if("share".equals(symbol)){
+                    outline.moveTo(3*u,20*u);
+                    outline.cubicTo(3*u,12*u,11*u,10*u,18*u,11*u);
+                    outline.lineTo(18*u,6*u);
+                    outline.lineTo(24*u,12*u);
+                    outline.lineTo(18*u,18*u);
+                    outline.lineTo(18*u,14*u);
+                    outline.cubicTo(10*u,13*u,6*u,15*u,3*u,20*u);
+                    canvas.drawPath(outline,pen);
+                }
+                canvas.restore();
+            }
+        };
         tile.addView(icon,new LinearLayout.LayoutParams(-1,dp(34)));
         TextView labelText=visualText(label,12,FG,false);
         labelText.setGravity(Gravity.CENTER);
