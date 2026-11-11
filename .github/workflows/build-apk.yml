@@ -95,11 +95,6 @@ jobs:
           python3 "$GITHUB_WORKSPACE/android/prepare-live-release.py"
           python3 "$GITHUB_WORKSPACE/android/finish-apk-pack-and-upgrade.py"
           python3 "$GITHUB_WORKSPACE/android/stories/integrate-native-stories.py"
-          # Diagnose the reproducible API 35 emoji smoke failure without suppressing the test.
-          echo 'MW_EMOJI_TEST_SOURCE'
-          grep -n -B 22 -A 26 -F 'Emoji picker did not open' app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java || true
-          echo 'MW_EMOJI_MAIN_HANDLERS'
-          grep -n -B 9 -A 38 -E 'showEmojiPicker|openEmojiPicker|chooseEmoji|emojiPicker|showEmojiPanel' app/src/main/java/com/muwahid/app/MainActivity.java || true
           VERSION_NAME="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" app/build.gradle | head -1)"
           VERSION_CODE="$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' app/build.gradle | head -1)"
           test "$VERSION_NAME" = "$EXPECTED_VERSION_NAME"
