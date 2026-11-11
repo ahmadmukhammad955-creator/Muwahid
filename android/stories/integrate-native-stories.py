@@ -59,7 +59,7 @@ one(API,
 one(MAIN,
     'menuRow(card,"◯","Мой профиль",this::showAccountSettings);',
     'menuRow(card,"◯","Мой профиль",()->startActivityForResult(new Intent(this,StoriesActivity.class),REQ_CONTACT_STORIES));'
-    'menuRow(card,"▧","Истории",()->startActivity(new Intent(this,StoriesActivity.class).putExtra("archive",true)));'
+    'menuRow(card,"▧","Истории",()->startActivityForResult(new Intent(this,StoriesActivity.class).putExtra("archive",true),REQ_CONTACT_STORIES));'
     'menuRow(card,"⚙","Настройки аккаунта",this::showAccountSettings);')
 
 one(MAIN,
@@ -70,6 +70,17 @@ one(MAIN,
 one(MAIN,
     '            }else showAccountSettings();\n        }).show();',
     '            }else openContactStories();\n        }).show();')
+
+# The composer must open immediately, even with slow/offline cloud sticker data.
+# Cache the optional cloud reaction catalog for future launches; never wait for
+# a network callback before showing the standard Android emoji grid.
+one(MAIN,
+    '    private void showPlainEmojiPicker(){loadStickerCloud(false,c->showPlainEmojiPickerWithCatalog(c),()->showPlainEmojiPickerWithCatalog(new JSONObject()));}',
+    '''    private JSONObject instantEmojiCatalog=new JSONObject();
+    private void showPlainEmojiPicker(){
+        showPlainEmojiPickerWithCatalog(instantEmojiCatalog);
+        loadStickerCloud(false,c->{if(c!=null)instantEmojiCatalog=c;},()->{});
+    }''')
 
 # Toolbar chatID is real, from mw_chats, and has a real profile/author.
 anchor='    private void showChat(String id,String name){'
