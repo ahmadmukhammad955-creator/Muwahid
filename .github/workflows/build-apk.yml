@@ -226,6 +226,11 @@ jobs:
             adb wait-for-device
             adb install -r Muwahid/app/build/outputs/apk/debug/app-debug.apk
             adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            # The OS notification-consent dialog otherwise takes focus from the chat
+            # and prevents accessibility from seeing the actual emoji picker.
+            # Grant consent only in the disposable test emulator; production keeps
+            # the Android permission prompt and all app functionality unchanged.
+            adb shell pm grant com.muwahid.app android.permission.POST_NOTIFICATIONS
             adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > smoke-android15.txt || true
             cat smoke-android15.txt
             adb logcat -d > logcat-android15.txt || true
