@@ -279,7 +279,7 @@ public final class StoriesActivity extends Activity {
         String displayName=contact.optString("display_name",personName);
         if(displayName==null||displayName.trim().isEmpty())displayName="Контакт";
         final String name=displayName;
-        final boolean self=api.uid().equals(contact.optString("id",""));
+        final boolean self=profileChatId.isEmpty() || api.uid().equals(contact.optString("id",""));
         FrameLayout hero=new FrameLayout(this);
         hero.setBackground(rounded(PANEL,21));hero.setClipToOutline(true);
         View skyline=new View(this){
@@ -338,16 +338,16 @@ public final class StoriesActivity extends Activity {
             sp.topMargin=dp(8);body.addView(online,sp);
         }
         LinearLayout actions=horizontal();
-        LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(73));
-        ap.topMargin=dp(22);body.addView(actions,ap);
+        LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(66));
+        ap.topMargin=dp(16);body.addView(actions,ap);
         addQuickAction(actions,"chat","Чат",()->finish(),true);
         addQuickAction(actions,"call","Звонок",()->startContactCall("audio"),!self);
         addQuickAction(actions,"video","Видео",()->startContactCall("video"),!self);
         addQuickAction(actions,"share","Поделиться",this::shareContact,true);
 
         LinearLayout heading=horizontal();
-        LinearLayout.LayoutParams headingP=new LinearLayout.LayoutParams(-1,dp(63));
-        headingP.topMargin=dp(8);body.addView(heading,headingP);
+        LinearLayout.LayoutParams headingP=new LinearLayout.LayoutParams(-1,dp(47));
+        headingP.topMargin=dp(12);body.addView(heading,headingP);
         TextView storiesLabel=visualText("Истории",20,FG,true);
         heading.addView(storiesLabel,new LinearLayout.LayoutParams(0,-2,1));
         TextView archiveLink=visualText("◷  Архив",16,0xFFCFD9E6,false);
@@ -358,7 +358,7 @@ public final class StoriesActivity extends Activity {
         String bio=contact.optString("bio","");
         LinearLayout details=vertical();details.setBackground(rounded(0xFF131E29,18));
         LinearLayout.LayoutParams detailsP=new LinearLayout.LayoutParams(-1,-2);
-        detailsP.topMargin=dp(21);body.addView(details,detailsP);
+        detailsP.topMargin=dp(13);body.addView(details,detailsP);
         if(self||!bio.isEmpty()){
             addInfoRow(details,"♙","О себе",bio,
                 self?this::editOwnProfile:()->new AlertDialog.Builder(this)
@@ -424,7 +424,7 @@ public final class StoriesActivity extends Activity {
         LinearLayout tile=vertical();tile.setGravity(Gravity.CENTER);
         tile.setBackground(rounded(PANEL,15));
         tile.setAlpha(enabled?1f:.35f);
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(71),1);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(64),1);
         lp.setMargins(dp(3),0,dp(3),0);parent.addView(tile,lp);
         View icon=new View(this){
             final Paint pen=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -473,7 +473,7 @@ public final class StoriesActivity extends Activity {
                 canvas.restore();
             }
         };
-        tile.addView(icon,new LinearLayout.LayoutParams(-1,dp(34)));
+        tile.addView(icon,new LinearLayout.LayoutParams(-1,dp(30)));
         TextView labelText=visualText(label,12,FG,false);
         labelText.setGravity(Gravity.CENTER);
         labelText.setSingleLine(true);labelText.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -588,7 +588,7 @@ public final class StoriesActivity extends Activity {
     private void renderArchive(LinearLayout body,ScrollView scroll){
         LinearLayout tabs=horizontal();tabs.setPadding(dp(4),dp(4),dp(4),dp(4));
         tabs.setBackground(rounded(PANEL,18));
-        body.addView(tabs,new LinearLayout.LayoutParams(-1,dp(58)));
+        body.addView(tabs,new LinearLayout.LayoutParams(-1,dp(54)));
         for(int i=0;i<2;i++){
             final boolean archived=i==1;
             TextView tab=visualText(i==0?"▣  Мои истории":"▢  Архив",15,
@@ -599,7 +599,7 @@ public final class StoriesActivity extends Activity {
             tabs.addView(tab,p);tab.setOnClickListener(v->selectArchiveTab(archived));
         }
         LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-1,-2);
-        gp.topMargin=dp(24);
+        gp.topMargin=dp(19);
         if(feed.length()==0){
             TextView empty=visualText(archiveLoading?"Загрузка…":"Историй пока нет",15,SECONDARY,false);
             empty.setGravity(Gravity.CENTER);empty.setPadding(0,dp(42),0,dp(40));
