@@ -22,7 +22,7 @@ def one(path,old,new):
         raise RuntimeError(f"Expected exactly one occurrence of {old[:130]!r} in {path}, got {n}")
     path.write_text(s.replace(old,new),encoding="utf-8")
 
-for name in ("StoryMediaCodec.java","StoriesActivity.java"):
+for name in ("StoryMediaCodec.java","StoriesActivity.java","ProfilePhotoCodec.java"):
     src=SOURCE/name
     if not src.is_file():raise RuntimeError(f"Missing real source {src}")
     (APP/name).write_bytes(src.read_bytes())
@@ -31,7 +31,13 @@ for name in ("StoryMediaCodec.java","StoriesActivity.java"):
 # bucket. Stories always upload AES-GCM ciphertext as application/octet-stream.
 one(API,
     '    synchronized void uploadSticker(String objectPath, byte[] data) throws Exception {',
-    '''    synchronized void uploadStory(String objectPath,byte[] encrypted) throws Exception {
+    '''    synchronized void uploadProfileImage(String path,byte[] jpeg) throws Exception {
+        uploadBucketObject("mw-profile-images",path,jpeg);
+    }
+    synchronized byte[] downloadProfileImage(String path) throws Exception {
+        return downloadBucketObject("mw-profile-images",path);
+    }
+    synchronized void uploadStory(String objectPath,byte[] encrypted) throws Exception {
         uploadBucketObject("mw-stories",objectPath,encrypted);
     }
     synchronized byte[] downloadStory(String objectPath) throws Exception {
@@ -159,6 +165,8 @@ one(TEST,'MW_SMOKE_OK: 0.13.41 ','MW_SMOKE_OK: 0.13.43 ')
 
 
 assert 'StoriesActivity.class' in MAIN.read_text(encoding="utf-8")
+assert (APP/"ProfilePhotoCodec.java").is_file()
+assert 'uploadProfileImage(String path' in API.read_text(encoding="utf-8")
 assert 'uploadStory(String objectPath' in API.read_text(encoding="utf-8")
 assert 'android:exported="false"' in MANIFEST.read_text(encoding="utf-8")
 print("MW_NATIVE_STORIES_INTEGRATED: encrypted media, contact profile, story navigation, real call routes and security tests")
