@@ -1,4 +1,4 @@
-name: Build Muwahid APK 0.13.42
+name: Build Muwahid APK 0.13.43
 
 on:
   workflow_dispatch:
@@ -21,12 +21,12 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 50
     env:
       PROJECT_ZIP: Muwahid_0.13.37_PROFILE_QR.zip
       BUNDLE_ZIP: Muwahid_0.13.37_PROFILE_QR.zip
-      EXPECTED_VERSION_NAME: '0.13.42'
-      EXPECTED_VERSION_CODE: '77'
+      EXPECTED_VERSION_NAME: '0.13.43'
+      EXPECTED_VERSION_CODE: '78'
 
     steps:
       - uses: actions/checkout@v4
@@ -129,6 +129,25 @@ jobs:
           MUWAHID_FCM_PROJECT_ID: ${{ secrets.MUWAHID_FCM_PROJECT_ID }}
         run: cd Muwahid && gradle --no-daemon assembleDebug assembleDebugAndroidTest
 
+      - name: Audit emoji picker test and implementation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          sources = [
+              (Path("Muwahid/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java"), "Emoji picker did not open"),
+              (Path("Muwahid/app/src/main/java/com/muwahid/app/MainActivity.java"), "private void showPlainEmojiPickerWithCatalog("),
+              (Path("Muwahid/app/src/main/java/com/muwahid/app/MainActivity.java"), "private void showPlainEmojiPicker("),
+          ]
+          for path, needle in sources:
+              lines = path.read_text(encoding="utf-8").splitlines()
+              matches = [i for i, line in enumerate(lines) if needle in line]
+              print(f"EMOJI_AUDIT: {path.name} {needle!r}, matches={len(matches)}")
+              for index in matches[:2]:
+                  for line_number in range(max(0,index-18), min(len(lines),index+37)):
+                      print(f"{line_number+1}: {lines[line_number]}")
+          PY
+
       - name: Build signed release APK
         if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         env:
@@ -144,10 +163,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          previous="$RUNNER_TEMP/Muwahid-0.13.41.apk"
+          previous="$RUNNER_TEMP/Muwahid-0.13.42.apk"
           curl --fail --location --silent --show-error --retry 3 --max-time 90 \
-            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v0.13.41/Muwahid-0.13.41.apk" -o "$previous"
-          echo "db0d6b752506d0c13fc014a2a922a6249451f4919dae13d77d57f4fbcf0d88fc  $previous" | sha256sum -c
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v0.13.42/Muwahid-0.13.42.apk" -o "$previous"
+          echo "24897e6b5ef1229417d053400ab4cd824982278703b1959c617c4ffe2471ce1f  $previous" | sha256sum -c
           apksigner="$ANDROID_HOME/build-tools/34.0.0/apksigner"
           if [ ! -x "$apksigner" ]; then
             sdkmanager "build-tools;34.0.0"
@@ -183,7 +202,7 @@ jobs:
             # The emulator runner executes each script line in a separate shell.
             # Keep shell conditionals on ONE line to prevent "expecting fi" errors.
             adb wait-for-device
-            if [ "${MUWAHID_STABLE_SIGNING:-false}" = true ]; then adb install "$RUNNER_TEMP/Muwahid-0.13.41.apk" && adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk && adb shell am instrument -w -e phase seed com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > upgrade-seed.txt && grep -F UPGRADE_SEED_OK upgrade-seed.txt && adb install -r Muwahid/app/build/outputs/apk/release/app-release.apk && adb shell dumpsys package com.muwahid.app | grep -F "versionCode=${EXPECTED_VERSION_CODE} " && adb shell am instrument -w -e phase verify com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > upgrade-result.txt && grep -F UPGRADE_DATA_OK upgrade-result.txt && adb uninstall com.muwahid.app; fi
+            if [ "${MUWAHID_STABLE_SIGNING:-false}" = true ]; then adb install "$RUNNER_TEMP/Muwahid-0.13.42.apk" && adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk && adb shell am instrument -w -e phase seed com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > upgrade-seed.txt && grep -F UPGRADE_SEED_OK upgrade-seed.txt && adb install -r Muwahid/app/build/outputs/apk/release/app-release.apk && adb shell dumpsys package com.muwahid.app | grep -F "versionCode=${EXPECTED_VERSION_CODE} " && adb shell am instrument -w -e phase verify com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > upgrade-result.txt && grep -F UPGRADE_DATA_OK upgrade-result.txt && adb uninstall com.muwahid.app; fi
             adb install -r Muwahid/app/build/outputs/apk/debug/app-debug.apk
             adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > smoke-result.txt
@@ -195,11 +214,38 @@ jobs:
             adb logcat -d -s AndroidRuntime:E > crash-log.txt || true
             ! grep -q 'FATAL EXCEPTION' crash-log.txt || { cat crash-log.txt; exit 1; }
 
+      - name: Check Muwahid on Android 15
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: 'true'
+          script: |
+            set -eu
+            adb wait-for-device
+            adb install -r Muwahid/app/build/outputs/apk/debug/app-debug.apk
+            adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            # The OS notification-consent dialog otherwise takes focus from the chat
+            # and prevents accessibility from seeing the actual emoji picker.
+            # Grant consent only in the disposable test emulator; production keeps
+            # the Android permission prompt and all app functionality unchanged.
+            adb shell pm grant com.muwahid.app android.permission.POST_NOTIFICATIONS
+            adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > smoke-android15.txt || true
+            cat smoke-android15.txt
+            adb logcat -d > logcat-android15.txt || true
+            adb logcat -d -s AndroidRuntime:E > crash-android15.txt || true
+            adb shell uiautomator dump /sdcard/window.xml || true
+            adb pull /sdcard/window.xml ui-android15.xml || true
+            adb exec-out screencap -p > screenshot-android15.png || true
+            grep -F "MW_SMOKE_OK: ${EXPECTED_VERSION_NAME}" smoke-android15.txt
+            ! grep -q 'FATAL EXCEPTION' crash-android15.txt || { cat crash-android15.txt; exit 1; }
+
       - name: Upload installable debug APK
         if: ${{ always() && env.MUWAHID_STABLE_SIGNING != 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.42-debug-apk
+          name: Muwahid-0.13.43-debug-apk
           path: Muwahid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: warn
 
@@ -207,7 +253,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-APK-0.13.41
+          name: Muwahid-APK-0.13.43
           path: Muwahid/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
@@ -215,17 +261,22 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muwahid-0.13.42-device-check
+          name: Muwahid-0.13.43-device-check
           path: |
             screenshots/
             smoke-result.txt
             crash-log.txt
             upgrade-seed.txt
             upgrade-result.txt
+            smoke-android15.txt
+            crash-android15.txt
+            logcat-android15.txt
+            ui-android15.xml
+            screenshot-android15.png
           if-no-files-found: warn
 
       - name: Publish signed update
-        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.publish == true) || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Publish signed Muwahid 0.13.42'))) && github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
+        if: ${{ success() && ((github.event_name == 'workflow_dispatch' && inputs.publish == true) || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Publish signed Muwahid 0.13.43'))) && github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -244,7 +295,7 @@ jobs:
           cp "$APK" "$RELEASE_APK"
           SHA256="$(sha256sum "$RELEASE_APK" | awk '{print $1}')"
           TAG="v${EXPECTED_VERSION_NAME}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Encrypted contact stories, private archive, profile, reactions and E2EE replies. Preserves existing chats and Android sessions."
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Muwahid ${EXPECTED_VERSION_NAME}" --notes "Muwahid ${EXPECTED_VERSION_NAME}: Corrected native story profile layout, Android 15 system insets, encrypted story previews and verified-audience publication UX. Preserves chats and sessions."
           gh release upload "$TAG" "$RELEASE_APK"
           mkdir -p updates
           jq -n \
@@ -252,7 +303,7 @@ jobs:
             --arg versionName "$EXPECTED_VERSION_NAME" \
             --arg apkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ASSET}" \
             --arg sha256 "$SHA256" \
-            --arg notes "Истории контактов, личный архив через 24 часа, реакции, ответы в защищённом чате и профиль. Сохраняются прежние сообщения и данные приложения." \
+            --arg notes "Исправлены профиль и истории: оформление, расположение на Android 15, миниатюры, публикация для проверенных контактов и архив. Чаты и данные сохраняются." \
             '{versionCode:$versionCode,versionName:$versionName,apkUrl:$apkUrl,sha256:$sha256,notes:$notes}' > updates/latest.json
           # Keep metadata from THIS APK, but update from the latest remote main.
           cp updates/latest.json "$RUNNER_TEMP/muwahid-latest.json"

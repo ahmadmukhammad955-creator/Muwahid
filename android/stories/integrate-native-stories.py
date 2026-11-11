@@ -58,8 +58,9 @@ one(API,
 # install an unrelated APK. Contact chat title opens the real contact profile.
 one(MAIN,
     'menuRow(card,"◯","Мой профиль",this::showAccountSettings);',
-    'menuRow(card,"◯","Мой профиль",this::showAccountSettings);'
-    'menuRow(card,"▧","Истории",()->startActivity(new Intent(this,StoriesActivity.class)));')
+    'menuRow(card,"◯","Мой профиль",()->startActivityForResult(new Intent(this,StoriesActivity.class),REQ_CONTACT_STORIES));'
+    'menuRow(card,"▧","Истории",()->startActivityForResult(new Intent(this,StoriesActivity.class).putExtra("archive",true),REQ_CONTACT_STORIES));'
+    'menuRow(card,"⚙","Настройки аккаунта",this::showAccountSettings);')
 
 one(MAIN,
     'bar.addView(words,new LinearLayout.LayoutParams(0,dp(48),1));',
@@ -69,6 +70,17 @@ one(MAIN,
 one(MAIN,
     '            }else showAccountSettings();\n        }).show();',
     '            }else openContactStories();\n        }).show();')
+
+# The composer must open immediately, even with slow/offline cloud sticker data.
+# Cache the optional cloud reaction catalog for future launches; never wait for
+# a network callback before showing the standard Android emoji grid.
+one(MAIN,
+    '    private void showPlainEmojiPicker(){loadStickerCloud(false,c->showPlainEmojiPickerWithCatalog(c),()->showPlainEmojiPickerWithCatalog(new JSONObject()));}',
+    '''    private JSONObject instantEmojiCatalog=new JSONObject();
+    private void showPlainEmojiPicker(){
+        showPlainEmojiPickerWithCatalog(instantEmojiCatalog);
+        loadStickerCloud(false,c->{if(c!=null)instantEmojiCatalog=c;},()->{});
+    }''')
 
 # Toolbar chatID is real, from mw_chats, and has a real profile/author.
 anchor='    private void showChat(String id,String name){'
@@ -94,9 +106,14 @@ one(MAIN,anchor,append+anchor)
 # flow; they do not merely display a button.
 needle='super.onActivityResult(requestCode,resultCode,data);'
 one(MAIN,needle,needle+'''if(requestCode==REQ_CONTACT_STORIES){
-            if(resultCode==RESULT_OK&&data!=null&&!notesMode&&"chat".equals(screen)){
-                String mode=data.getStringExtra("contact_call_kind");
-                if("audio".equals(mode)||"video".equals(mode))startCall(mode);
+            if(resultCode==RESULT_OK&&data!=null){
+                if(data.getBooleanExtra("open_profile_settings",false)){
+                    showAccountSettings();return;
+                }
+                if(!notesMode&&"chat".equals(screen)){
+                    String mode=data.getStringExtra("contact_call_kind");
+                    if("audio".equals(mode)||"video".equals(mode))startCall(mode);
+                }
             }
             return;
         }''')
@@ -134,11 +151,11 @@ snippet='''    private void checkStoryMediaEncryption() throws Exception{
 one(TEST,'    private Activity activity;',snippet+'    private Activity activity;')
 one(TEST,'            checkProfileQr();','            checkProfileQr();\n            checkStoryMediaEncryption();')
 # Separate signed update candidate. The 0.13.41 baseline must stay unchanged.
-# Only the assembled story-enabled application is marked as 0.13.42 (77).
-one(Path("app/build.gradle"),"versionCode 76","versionCode 77")
-one(Path("app/build.gradle"),"versionName '0.13.41'","versionName '0.13.42'")
-one(TEST,'"0.13.41".equals(BuildConfig.VERSION_NAME)','"0.13.42".equals(BuildConfig.VERSION_NAME)')
-one(TEST,'MW_SMOKE_OK: 0.13.41 ','MW_SMOKE_OK: 0.13.42 ')
+# Only the assembled corrected app is marked as 0.13.43 (78) for a safe in-place update.
+one(Path("app/build.gradle"),"versionCode 76","versionCode 78")
+one(Path("app/build.gradle"),"versionName '0.13.41'","versionName '0.13.43'")
+one(TEST,'"0.13.41".equals(BuildConfig.VERSION_NAME)','"0.13.43".equals(BuildConfig.VERSION_NAME)')
+one(TEST,'MW_SMOKE_OK: 0.13.41 ','MW_SMOKE_OK: 0.13.43 ')
 
 
 assert 'StoriesActivity.class' in MAIN.read_text(encoding="utf-8")
