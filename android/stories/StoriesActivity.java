@@ -27,6 +27,7 @@ public final class StoriesActivity extends Activity {
     private JSONArray feed=new JSONArray();
     private static final int ARCHIVE_PAGE_SIZE=50;
     private boolean archiveMode=false,archiveHasMore=false,archiveLoading=false;
+    private boolean archiveScreen=false;
     private int archiveOffset=0,archiveSavedScroll=-1,archiveRequestSerial=0;
     private final android.util.LruCache<String,Bitmap> thumbnailCache=
         new android.util.LruCache<String,Bitmap>(12*1024*1024){
@@ -73,6 +74,7 @@ public final class StoriesActivity extends Activity {
         if(profileChatId==null)profileChatId="";
         if(personId==null)personId="";
         if(personName==null)personName="";
+        archiveScreen=profileChatId.isEmpty();
         getWindow().setStatusBarColor(Color.rgb(8,16,29));
         getWindow().setNavigationBarColor(Color.rgb(8,16,29));
         renderFeed();
@@ -108,16 +110,16 @@ public final class StoriesActivity extends Activity {
         if(archiveMode){loadArchive(false);return;}
         backgroundWork(()->{
             JSONObject profile=new JSONObject();
-            if(!profileChatId.isEmpty()){
+            if(!archiveScreen&&!profileChatId.isEmpty()){
                 profile=(JSONObject)api.rpc("mw_contact_profile",new JSONObject().put("p_chat",profileChatId));
             }
-            String targetPerson=personId.isEmpty()?profile.optString("id",""):personId;
+            String targetPerson=archiveScreen?api.uid():(personId.isEmpty()?profile.optString("id",""):personId);
             JSONObject args=new JSONObject();
             args.put("p_person",targetPerson.isEmpty()?JSONObject.NULL:targetPerson);
             JSONArray entries=(JSONArray)api.rpc("mw_story_feed",args);
             final JSONObject target=profile;
             ui.post(()->{if(destroyed||archiveMode)return;contact=target;feed=entries;
-                if(personId.isEmpty())personId=targetPerson;
+                if(personId.isEmpty()&&!archiveScreen)personId=targetPerson;
                 renderFeed();});
         });
     }
@@ -167,199 +169,354 @@ public final class StoriesActivity extends Activity {
         frame=new FrameLayout(this);frame.setBackgroundColor(Color.rgb(8,17,30));
         setContentView(frame);applySafeInsets(frame);
     }
+
+    // New native visual layout based on the approved Muwahid profile/archive reference.
+    // This screen never manufactures avatars, story media, view counts or contact details.
+    private static final int BG=0xFF09111B, PANEL=0xFF1B2633, FG=0xFFF7FAFF;
+    private static final int SECONDARY=0xFFB2BECF, BLUE=0xFF1D95D0;
+
+    private TextView visualText(String value,int sp,int color,boolean bold){
+        TextView t=text(value,sp,color);
+        if(bold)t.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
+        t.setIncludeFontPadding(false);
+        return t;
+    }
+    private void openArchiveScreen(){
+        archiveScreen=true; archiveMode=false; archiveOffset=0;archiveSavedScroll=-1;
+        archiveRequestSerial++;archiveLoading=false;archiveHasMore=false;
+        feed=new JSONArray();renderFeed();reload();
+    }
+    private void selectArchiveTab(boolean archive){
+        if(archiveMode==archive)return;
+        archiveMode=archive;archiveRequestSerial++;archiveLoading=false;
+        archiveOffset=0;archiveHasMore=false;archiveSavedScroll=-1;
+        feed=new JSONArray();renderFeed();reload();
+    }
+    private void returnFromScreen(){
+        if(archiveScreen&&!profileChatId.isEmpty()){
+            archiveScreen=false;archiveMode=false;feed=new JSONArray();renderFeed();reload();
+        }else finish();
+    }
+    private TextView simpleIcon(String value,String hint){
+        TextView t=visualText(value,26,FG,false);
+        t.setGravity(Gravity.CENTER);t.setContentDescription(hint);
+        return t;
+    }
+    private void openProfileMenu(View anchor){
+        PopupMenu popup=new PopupMenu(this,anchor);
+        popup.getMenu().add(0,1,0,"Обновить");
+        if(!profileChatId.isEmpty()){
+            popup.getMenu().add(0,2,1,"Поделиться");
+            if(!api.uid().equals(contact.optString("id",""))){
+                popup.getMenu().add(0,3,2,contact.optBoolean("blocked_by_me",false)?"Разблокировать":"Заблокировать");
+            }
+        }
+        popup.setOnMenuItemClickListener(item->{
+            if(item.getItemId()==1){reload();return true;}
+            if(item.getItemId()==2){shareContact();return true;}
+            if(item.getItemId()==3){confirmBlock();return true;}
+            return false;
+        });
+        popup.show();
+    }
     private void renderFeed(){
         if(destroyed)return;
         setRoot();
+        frame.setBackgroundColor(BG);
         LinearLayout page=vertical();
         frame.addView(page,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout bar=horizontal();
-        bar.setPadding(dp(12),dp(8),dp(12),dp(10));
-        TextView back=toolbarIcon("‹","Назад");
+        bar.setPadding(dp(13),dp(7),dp(13),dp(7));
+        TextView back=simpleIcon("‹","Назад");
         bar.addView(back,new LinearLayout.LayoutParams(dp(44),dp(46)));
-        back.setOnClickListener(v->finish());
-        TextView title=text(archiveMode?"Мой архив":(profileChatId.isEmpty()?"Истории":"Профиль"),20,white());
-        title.setTypeface(null,1);title.setSingleLine(true);
+        back.setOnClickListener(v->returnFromScreen());
+        TextView title=visualText(archiveScreen?"Архив историй":"Профиль",21,FG,true);
+        title.setSingleLine(true);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(0,dp(48),1);
-        tp.leftMargin=dp(10);tp.rightMargin=dp(7);bar.addView(title,tp);
-        // The private archive belongs to the current user, not to a contact's profile.
-        if(profileChatId.isEmpty()||archiveMode){
-            TextView archive=button(archiveMode?"Истории":"Архив");
-            archive.setTextSize(13);archive.setPadding(dp(11),0,dp(11),0);
-            archive.setContentDescription(archiveMode?"Вернуться к историям":"Открыть личный архив");
-            bar.addView(archive,new LinearLayout.LayoutParams(-2,dp(44)));
-            archive.setOnClickListener(v->{
-                archiveMode=!archiveMode;archiveRequestSerial++;archiveLoading=false;archiveOffset=0;archiveHasMore=false;
-                archiveSavedScroll=-1;feed=new JSONArray();renderFeed();reload();
-            });
-        }
-        TextView refresh=toolbarIcon("↻","Обновить истории");
-        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(dp(44),dp(44));
-        rp.leftMargin=dp(6);bar.addView(refresh,rp);
-        refresh.setOnClickListener(v->reload());
+        LinearLayout.LayoutParams titleP=new LinearLayout.LayoutParams(0,dp(46),1);
+        titleP.leftMargin=dp(8);bar.addView(title,titleP);
+        TextView more=simpleIcon("⋮","Меню");
+        bar.addView(more,new LinearLayout.LayoutParams(dp(42),dp(46)));
+        more.setOnClickListener(this::openProfileMenu);
         page.addView(bar);
 
         ScrollView scroll=new ScrollView(this);
         scroll.setFillViewport(false);scroll.setVerticalScrollBarEnabled(false);
+        scroll.setClipToPadding(false);
         LinearLayout body=vertical();
-        body.setPadding(dp(16),dp(8),dp(16),dp(36));
-        scroll.addView(body);page.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        body.setPadding(dp(14),dp(7),dp(14),dp(28));
+        scroll.addView(body);
+        page.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        if(archiveScreen)renderArchive(body,scroll);
+        else renderContact(body);
+    }
+    private void renderContact(LinearLayout body){
+        if(contact.length()==0){
+            TextView loading=visualText("Загрузка профиля…",15,SECONDARY,false);
+            loading.setPadding(dp(14),dp(24),dp(14),dp(24));body.addView(loading);
+            return;
+        }
+        String displayName=contact.optString("display_name",personName);
+        if(displayName==null||displayName.trim().isEmpty())displayName="Контакт";
+        final String name=displayName;
+        final boolean self=api.uid().equals(contact.optString("id",""));
+        FrameLayout hero=new FrameLayout(this);
+        hero.setBackground(rounded(PANEL,21));hero.setClipToOutline(true);
+        View skyline=new View(this){
+            private final Paint paint=new Paint(3);
+            @Override protected void onDraw(Canvas c){
+                int w=getWidth(),h=getHeight();
+                paint.setShader(new LinearGradient(0,0,0,h,
+                    new int[]{0xFF15283D,0xFF594657,0xFFBF7562,0xFF111E2B},null,Shader.TileMode.CLAMP));
+                c.drawRect(0,0,w,h,paint);paint.setShader(null);
+                paint.setColor(0xCDE8E2D8);
+                c.drawCircle(w*.83f,h*.24f,dp(10),paint);
+                paint.setColor(0xFF101A28);
+                c.drawRect(0,h*.84f,w,h,paint);
+                float center=w*.48f,ground=h*.87f;
+                paint.setStyle(Paint.Style.FILL);
+                c.drawRect(center-dp(63),ground-dp(26),center+dp(63),ground,paint);
+                c.drawOval(center-dp(56),ground-dp(75),center+dp(56),ground-dp(6),paint);
+                for(int side=-1;side<=1;side+=2){
+                    float x=center+side*dp(112);
+                    c.drawRect(x-dp(6),ground-dp(108),x+dp(6),ground,paint);
+                    Path cone=new Path();cone.moveTo(x-dp(7),ground-dp(108));cone.lineTo(x,ground-dp(151));
+                    cone.lineTo(x+dp(7),ground-dp(108));cone.close();c.drawPath(cone,paint);
+                }
+                paint.setColor(0x50101821);c.drawRect(0,h*.81f,w,h,paint);
+            }
+        };
+        FrameLayout.LayoutParams skyP=new FrameLayout.LayoutParams(-1,dp(171),Gravity.TOP);
+        hero.addView(skyline,skyP);
+        TextView avatar=visualText(name.substring(0,1).toUpperCase(Locale.ROOT),38,FG,true);
+        avatar.setGravity(Gravity.CENTER);
+        GradientDrawable circle=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+           new int[]{0xFF155176,0xFF128C86});
+        circle.setShape(GradientDrawable.OVAL);
+        circle.setStroke(dp(3),FG);
+        avatar.setBackground(circle);
+        FrameLayout.LayoutParams avatarP=new FrameLayout.LayoutParams(dp(102),dp(102),Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);
+        avatarP.bottomMargin=dp(7);hero.addView(avatar,avatarP);
+        body.addView(hero,new LinearLayout.LayoutParams(-1,dp(233)));
+
+        TextView display=visualText(name,25,FG,true);
+        display.setGravity(Gravity.CENTER);display.setSingleLine(true);
+        display.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams displayP=new LinearLayout.LayoutParams(-1,-2);
+        displayP.topMargin=dp(8);body.addView(display,displayP);
+        String username=contact.optString("username","");
+        if(!username.isEmpty()){
+            TextView handle=visualText("@"+username,16,SECONDARY,false);
+            handle.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);
+            hp.topMargin=dp(3);body.addView(handle,hp);
+        }
+        if(contact.has("online")&&contact.optBoolean("online",false)){
+            TextView online=visualText("●  Онлайн",13,0xFF27D486,false);
+            online.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2);
+            sp.topMargin=dp(8);body.addView(online,sp);
+        }
+        LinearLayout actions=horizontal();
+        LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(73));
+        ap.topMargin=dp(22);body.addView(actions,ap);
+        addQuickAction(actions,"◯","Чат",()->finish(),true);
+        addQuickAction(actions,"♧","Звонок",()->startContactCall("audio"),!self);
+        addQuickAction(actions,"▣","Видео",()->startContactCall("video"),!self);
+        addQuickAction(actions,"➦","Поделиться",this::shareContact,true);
+
+        LinearLayout heading=horizontal();
+        LinearLayout.LayoutParams headingP=new LinearLayout.LayoutParams(-1,dp(63));
+        headingP.topMargin=dp(8);body.addView(heading,headingP);
+        TextView storiesLabel=visualText("Истории",20,FG,true);
+        heading.addView(storiesLabel,new LinearLayout.LayoutParams(0,-2,1));
+        TextView archiveLink=visualText("◷  Архив",16,0xFFCFD9E6,false);
+        archiveLink.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
+        heading.addView(archiveLink,new LinearLayout.LayoutParams(dp(96),dp(44)));
+        archiveLink.setOnClickListener(v->openArchiveScreen());
+        renderStoryStrip(body);
+        String bio=contact.optString("bio","");
+        LinearLayout details=vertical();details.setBackground(rounded(0xFF131E29,18));
+        LinearLayout.LayoutParams detailsP=new LinearLayout.LayoutParams(-1,-2);
+        detailsP.topMargin=dp(21);body.addView(details,detailsP);
+        if(!bio.isEmpty()){
+            addInfoRow(details,"♙","О себе",bio,()->new AlertDialog.Builder(this)
+              .setTitle("О себе").setMessage(bio).setPositiveButton("Закрыть",null).show());
+        }
+        // Show a real action only where the existing backend provides one.
+        if(!self)addInfoRow(details,"♢","Конфиденциальность","",this::confirmBlock);
+    }
+    private void startContactCall(String kind){
+        Intent result=new Intent();result.putExtra("contact_call_kind",kind);
+        setResult(RESULT_OK,result);finish();
+    }
+    private void addQuickAction(LinearLayout parent,String symbol,String label,Runnable action,boolean enabled){
+        LinearLayout tile=vertical();tile.setGravity(Gravity.CENTER);
+        tile.setBackground(rounded(PANEL,15));
+        tile.setAlpha(enabled?1f:.35f);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(71),1);
+        lp.setMargins(dp(3),0,dp(3),0);parent.addView(tile,lp);
+        TextView icon=visualText(symbol,27,FG,false);icon.setGravity(Gravity.CENTER);
+        tile.addView(icon,new LinearLayout.LayoutParams(-1,dp(34)));
+        TextView labelText=visualText(label,12,FG,false);
+        labelText.setGravity(Gravity.CENTER);
+        labelText.setSingleLine(true);labelText.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        tile.addView(labelText,new LinearLayout.LayoutParams(-1,dp(23)));
+        tile.setContentDescription(label);
+        tile.setEnabled(enabled);
+        if(enabled)tile.setOnClickListener(v->action.run());
+    }
+    private void addInfoRow(LinearLayout parent,String symbol,String title,String summary,Runnable action){
+        LinearLayout row=horizontal();row.setPadding(dp(12),dp(13),dp(10),dp(13));
+        parent.addView(row,new LinearLayout.LayoutParams(-1,-2));
+        TextView icon=visualText(symbol,23,FG,false);icon.setGravity(Gravity.CENTER);
+        icon.setBackground(rounded(PANEL,30));
+        row.addView(icon,new LinearLayout.LayoutParams(dp(43),dp(43)));
+        LinearLayout labels=vertical();
+        LinearLayout.LayoutParams labelsP=new LinearLayout.LayoutParams(0,-2,1);
+        labelsP.leftMargin=dp(11);row.addView(labels,labelsP);
+        TextView label=visualText(title,16,FG,false);labels.addView(label);
+        if(summary!=null&&!summary.isEmpty()){
+            TextView sub=visualText(summary,12,SECONDARY,false);
+            sub.setMaxLines(1);sub.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            labels.addView(sub);
+        }
+        TextView chevron=visualText("›",29,SECONDARY,false);
+        chevron.setGravity(Gravity.CENTER);
+        row.addView(chevron,new LinearLayout.LayoutParams(dp(25),dp(42)));
+        row.setOnClickListener(v->action.run());
+        View divider=new View(this);divider.setBackgroundColor(0xFF24303D);
+        LinearLayout.LayoutParams d=new LinearLayout.LayoutParams(-1,dp(1));
+        d.leftMargin=dp(61);parent.addView(divider,d);
+    }
+    private void renderStoryStrip(LinearLayout body){
+        HorizontalScrollView scroll=new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);scroll.setFillViewport(false);
+        LinearLayout row=horizontal();row.setPadding(0,dp(2),dp(5),dp(2));
+        scroll.addView(row);body.addView(scroll,new LinearLayout.LayoutParams(-1,dp(145)));
+        FrameLayout add=new FrameLayout(this);
+        add.setBackground(rounded(PANEL,16));
+        LinearLayout.LayoutParams addP=new LinearLayout.LayoutParams(dp(95),dp(139));
+        addP.rightMargin=dp(8);row.addView(add,addP);
+        TextView plus=visualText("+",35,FG,false);plus.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams plusP=new FrameLayout.LayoutParams(dp(55),dp(55),Gravity.TOP|Gravity.CENTER_HORIZONTAL);
+        plusP.topMargin=dp(21);plus.setBackground(rounded(0xFF34414E,48));
+        add.addView(plus,plusP);
+        TextView addLabel=visualText("Добавить\nисторию",13,FG,false);
+        addLabel.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams labelP=new FrameLayout.LayoutParams(-1,dp(50),Gravity.BOTTOM);
+        add.addView(addLabel,labelP);
+        add.setOnClickListener(v->chooseStoryFile());
+        for(int i=0;i<feed.length();i++){
+            JSONObject story=feed.optJSONObject(i);if(story==null)continue;
+            final int index=i;
+            FrameLayout card=buildStoryTile(story,index,95,139);
+            LinearLayout.LayoutParams tileP=new LinearLayout.LayoutParams(dp(95),dp(139));
+            tileP.rightMargin=dp(8);row.addView(card,tileP);
+        }
+    }
+    private String storyAge(JSONObject story){
+        String ends=story.optString("expires_at","");
+        if(!ends.isEmpty()&&!archiveMode)try{
+            long millis=java.time.Instant.parse(ends).toEpochMilli()-System.currentTimeMillis();
+            if(millis>0)return Math.max(1,(millis+3599999L)/3600000L)+" ч";
+        }catch(Exception ignored){}
+        String created=story.optString("created_at","");
+        if(!created.isEmpty())try{
+            long age=Math.max(0,System.currentTimeMillis()-java.time.Instant.parse(created).toEpochMilli());
+            if(age<86400000L)return Math.max(1,age/3600000L)+" ч";
+            return Math.max(1,age/86400000L)+" д";
+        }catch(Exception ignored){}
+        return "";
+    }
+    private FrameLayout buildStoryTile(JSONObject story,int index,int widthDp,int heightDp){
+        FrameLayout tile=new FrameLayout(this);
+        tile.setBackground(rounded(PANEL,14));
+        tile.setClipToOutline(true);
+        tile.setContentDescription("Открыть историю "+(index+1));
+        ImageView image=new ImageView(this);
+        image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        image.setBackgroundColor(0xFF213141);
+        tile.addView(image,new FrameLayout.LayoutParams(-1,-1));
+        TextView fallback=visualText("▧",27,SECONDARY,false);
+        fallback.setGravity(Gravity.CENTER);
+        tile.addView(fallback,new FrameLayout.LayoutParams(-1,-1));
+        View shade=new View(this);
+        shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+           new int[]{0x68061119,0x00061119,0x90061119}));
+        tile.addView(shade,new FrameLayout.LayoutParams(-1,-1));
+        String age=storyAge(story);
+        if(!age.isEmpty()){
+            TextView elapsed=visualText(age,12,FG,true);
+            elapsed.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
+            FrameLayout.LayoutParams ep=new FrameLayout.LayoutParams(-1,dp(26),Gravity.TOP);
+            ep.setMargins(dp(5),dp(1),dp(8),0);tile.addView(elapsed,ep);
+        }
+        Object views=story.opt("view_count");
+        if(!(views instanceof Number))views=story.opt("views_count");
+        if(views instanceof Number){
+            TextView count=visualText("◉ "+views.toString(),12,FG,true);
+            FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(-1,dp(24),Gravity.BOTTOM);
+            cp.setMargins(dp(8),0,0,dp(4));tile.addView(count,cp);
+        }else if("video".equals(story.optString("media_kind"))){
+            TextView play=visualText("▶",15,FG,true);
+            FrameLayout.LayoutParams pp=new FrameLayout.LayoutParams(-2,dp(23),Gravity.BOTTOM|Gravity.LEFT);
+            pp.setMargins(dp(7),0,0,dp(4));tile.addView(play,pp);
+        }
+        tile.setOnClickListener(v->openStory(index));
+        loadThumbnail(story,image,fallback,dp(widthDp));
+        return tile;
+    }
+    private void renderArchive(LinearLayout body,ScrollView scroll){
+        LinearLayout tabs=horizontal();tabs.setPadding(dp(4),dp(4),dp(4),dp(4));
+        tabs.setBackground(rounded(PANEL,18));
+        body.addView(tabs,new LinearLayout.LayoutParams(-1,dp(58)));
+        for(int i=0;i<2;i++){
+            final boolean archived=i==1;
+            TextView tab=visualText(i==0?"▣  Мои истории":"▢  Архив",15,
+                archiveMode==archived?0xFF60D2FF:FG,archiveMode==archived);
+            tab.setGravity(Gravity.CENTER);
+            if(archiveMode==archived)tab.setBackground(rounded(0xFF104C6D,15));
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);
+            tabs.addView(tab,p);tab.setOnClickListener(v->selectArchiveTab(archived));
+        }
+        LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-1,-2);
+        gp.topMargin=dp(24);
+        if(feed.length()==0){
+            TextView empty=visualText(archiveLoading?"Загрузка…":"Историй пока нет",15,SECONDARY,false);
+            empty.setGravity(Gravity.CENTER);empty.setPadding(0,dp(42),0,dp(40));
+            body.addView(empty,gp);
+        }else{
+            android.widget.GridLayout grid=new android.widget.GridLayout(this);grid.setColumnCount(3);
+            int tile=Math.max(dp(80),(getResources().getDisplayMetrics().widthPixels-dp(46))/3);
+            for(int i=0;i<feed.length();i++){
+                JSONObject item=feed.optJSONObject(i);if(item==null)continue;
+                FrameLayout visual=buildStoryTile(item,i,110,174);
+                android.widget.GridLayout.LayoutParams p=new android.widget.GridLayout.LayoutParams();
+                p.width=tile;p.height=Math.round(tile*1.67f);
+                p.setMargins(dp(3),dp(3),dp(3),dp(3));grid.addView(visual,p);
+            }
+            body.addView(grid,gp);
+        }
+        if(!archiveMode){
+            TextView add=visualText("＋  Добавить историю",15,FG,true);
+            add.setGravity(Gravity.CENTER);
+            add.setBackground(rounded(0xFF155C7A,14));
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(49));
+            p.topMargin=dp(20);body.addView(add,p);
+            add.setOnClickListener(v->chooseStoryFile());
+        }else if(archiveHasMore){
+            TextView more=visualText("Показать ещё",15,FG,true);
+            more.setGravity(Gravity.CENTER);more.setBackground(rounded(PANEL,14));
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(49));
+            p.topMargin=dp(18);body.addView(more,p);
+            more.setOnClickListener(v->{
+                more.setEnabled(false);archiveSavedScroll=scroll.getScrollY();loadArchive(true);
+            });
+        }
         if(archiveMode&&archiveSavedScroll>=0){
             final int savedY=archiveSavedScroll;archiveSavedScroll=-1;
             scroll.post(()->scroll.scrollTo(0,savedY));
-        }
-
-        if(!archiveMode&&!profileChatId.isEmpty())renderContact(body);
-        TextView section=text(archiveMode?"Архив":"Истории",19,white());
-        section.setTypeface(null,1);section.setPadding(dp(2),dp(15),0,dp(12));
-        body.addView(section);
-
-        // Publishing is an action in MY stories, not inside somebody else's profile.
-        if(!archiveMode&&profileChatId.isEmpty()){
-            TextView add=button("＋  Добавить историю");
-            add.setTextSize(15);add.setTypeface(null,1);
-            add.setBackground(rounded(Color.rgb(15,135,117),14));
-            add.setContentDescription("Выбрать фото или видео для своей истории");
-            body.addView(add,new LinearLayout.LayoutParams(-1,dp(48)));
-            add.setOnClickListener(v->chooseStoryFile());
-        }
-
-        if(feed.length()==0){
-            TextView empty=text(archiveMode?"Архив пуст":(archiveLoading?"Загрузка…":"Пока нет историй"),15,mutedColor());
-            empty.setGravity(Gravity.CENTER);
-            empty.setPadding(dp(12),dp(29),dp(12),dp(26));
-            LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-1,-2);
-            ep.topMargin=dp(7);body.addView(empty,ep);
-        }else renderStoryGrid(body);
-
-        if(archiveMode&&archiveHasMore){
-            TextView more=button("Показать ещё истории");
-            LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,dp(52));
-            mp.setMargins(0,dp(16),0,0);body.addView(more,mp);
-            more.setOnClickListener(v->{more.setEnabled(false);archiveSavedScroll=scroll.getScrollY();loadArchive(true);});
-        }
-    }
-    private void renderContact(LinearLayout body){
-        LinearLayout card=vertical();
-        card.setPadding(dp(16),dp(20),dp(16),dp(18));
-        card.setBackground(rounded(surfaceColor(),20));
-
-        if(contact.length()==0){
-            TextView loading=text("Загружаем данные контакта…",15,mutedColor());
-            card.addView(loading);body.addView(card);return;
-        }
-        String name=contact.optString("display_name",personName);
-        if(name==null||name.trim().isEmpty())name="Контакт";
-        boolean self=api.uid().equals(contact.optString("id",""));
-        LinearLayout identity=horizontal();
-        TextView avatar=text(name.substring(0,1).toUpperCase(Locale.ROOT),34,white());
-        avatar.setGravity(Gravity.CENTER);
-        GradientDrawable avatarCircle=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-            new int[]{Color.rgb(19,133,153),Color.rgb(28,171,141)});
-        avatarCircle.setShape(GradientDrawable.OVAL);
-        avatar.setBackground(avatarCircle);
-        identity.addView(avatar,new LinearLayout.LayoutParams(dp(78),dp(78)));
-        LinearLayout details=vertical();details.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams idp=new LinearLayout.LayoutParams(0,-2,1);
-        idp.leftMargin=dp(16);identity.addView(details,idp);
-        TextView display=text(name,21,white());display.setTypeface(null,1);
-        display.setSingleLine(true);display.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        details.addView(display);
-        String username=contact.optString("username","");
-        if(!username.isEmpty()){
-            TextView user=text("@"+username,14,mutedColor());
-            user.setPadding(0,dp(2),0,0);details.addView(user);
-        }
-        String status=self?"Мой профиль":contact.optBoolean("online",false)?"В сети":"Был(а) недавно";
-        TextView state=text(status,13,self?accentColor():mutedColor());
-        state.setPadding(0,dp(5),0,0);details.addView(state);
-        TextView more=toolbarIcon("⋮","Действия с профилем");
-        LinearLayout.LayoutParams menuParams=new LinearLayout.LayoutParams(dp(40),dp(42));
-        menuParams.leftMargin=dp(4);
-        identity.addView(more,menuParams);
-        more.setOnClickListener(v->{
-            PopupMenu menu=new PopupMenu(this,more);
-            menu.getMenu().add(0,1,0,"Поделиться");
-            if(!self)menu.getMenu().add(0,2,1,
-                contact.optBoolean("blocked_by_me",false)?"Разблокировать":"Заблокировать");
-            menu.setOnMenuItemClickListener(item->{
-                if(item.getItemId()==1){shareContact();return true;}
-                if(item.getItemId()==2&&!self){confirmBlock();return true;}
-                return false;
-            });
-            menu.show();
-        });
-        card.addView(identity);
-
-        String bio=contact.optString("bio","");
-        if(!bio.isEmpty()){
-            TextView about=text(bio,14,white());
-            about.setPadding(dp(2),dp(17),dp(2),dp(11));card.addView(about);
-        }
-        if(!self){
-            LinearLayout actions=horizontal();actions.setGravity(Gravity.CENTER);
-            actions.setPadding(0,dp(19),0,0);
-            String[] labels={"Чат","Аудио","Видео"};
-            for(int i=0;i<labels.length;i++){
-                final int which=i;
-                TextView action=button(labels[i]);action.setTextSize(14);
-                action.setBackground(rounded(which==0?Color.rgb(15,135,117):Color.rgb(26,51,70),13));
-                action.setContentDescription(which==0?"Вернуться в чат":which==1?"Начать голосовой звонок":"Начать видеозвонок");
-                LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(47),1);
-                p.setMargins(dp(2),0,dp(2),0);
-                actions.addView(action,p);
-                action.setOnClickListener(v->{
-                    if(which==0)finish();
-                    else{
-                        Intent result=new Intent();
-                        result.putExtra("contact_call_kind",which==1?"audio":"video");
-                        setResult(RESULT_OK,result);finish();
-                    }
-                });
-            }
-            card.addView(actions);
-        }
-        body.addView(card);
-    }
-    private void renderStoryGrid(LinearLayout body){
-        android.widget.GridLayout gallery=new android.widget.GridLayout(this);
-        gallery.setColumnCount(3);
-        int tile=Math.max(dp(86),(getResources().getDisplayMetrics().widthPixels-dp(44))/3);
-        int count=Math.min(feed.length(),48);
-        for(int i=0;i<count;i++){
-            final int index=i;
-            JSONObject story=feed.optJSONObject(i);if(story==null)continue;
-            FrameLayout tileView=new FrameLayout(this);
-            tileView.setBackground(rounded(Color.rgb(24,43,59),14));
-            tileView.setClipToOutline(true);
-            tileView.setContentDescription("Открыть историю "+(i+1));
-            ImageView preview=new ImageView(this);
-            preview.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            preview.setBackgroundColor(Color.rgb(20,43,57));
-            tileView.addView(preview,new FrameLayout.LayoutParams(-1,-1));
-            TextView fallback=text("▧",31,mutedColor());
-            fallback.setGravity(Gravity.CENTER);
-            tileView.addView(fallback,new FrameLayout.LayoutParams(-1,-1));
-            // Keep the gallery image-first; only videos need a compact overlay.
-            if("video".equals(story.optString("media_kind"))){
-                TextView play=text("▶",18,white());
-                play.setGravity(Gravity.CENTER);
-                play.setBackground(rounded(0x99081220,20));
-                FrameLayout.LayoutParams mark=new FrameLayout.LayoutParams(dp(34),dp(34),Gravity.TOP|Gravity.RIGHT);
-                mark.setMargins(0,dp(6),dp(6),0);
-                tileView.addView(play,mark);
-            }
-            android.widget.GridLayout.LayoutParams gp=new android.widget.GridLayout.LayoutParams();
-            gp.width=tile;gp.height=tile*6/5;
-            gp.setMargins(dp(2),dp(2),dp(2),dp(2));
-            gallery.addView(tileView,gp);
-            tileView.setOnClickListener(v->openStory(index));
-            loadThumbnail(story,preview,fallback,tile);
-        }
-        body.addView(gallery);
-        if(feed.length()>48){
-            TextView note=text("Показаны последние 48 историй. Для остальных используйте обновление и архив.",12,mutedColor());
-            note.setPadding(dp(4),dp(12),dp(4),dp(5));body.addView(note);
         }
     }
     private void loadThumbnail(JSONObject story,ImageView preview,TextView fallback,int size){
@@ -865,6 +1022,6 @@ public final class StoriesActivity extends Activity {
             }});
         });
     }
-    @Override public void onBackPressed(){if(viewing)renderFeed();else super.onBackPressed();}
+    @Override public void onBackPressed(){if(viewing)renderFeed();else returnFromScreen();}
     @Override protected void onDestroy(){destroyed=true;viewing=false;stopPlayback();io.shutdownNow();thumbnailWork.shutdownNow();thumbnailCache.evictAll();super.onDestroy();}
 }
