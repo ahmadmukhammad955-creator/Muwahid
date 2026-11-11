@@ -58,8 +58,9 @@ one(API,
 # install an unrelated APK. Contact chat title opens the real contact profile.
 one(MAIN,
     'menuRow(card,"◯","Мой профиль",this::showAccountSettings);',
-    'menuRow(card,"◯","Мой профиль",this::showAccountSettings);'
-    'menuRow(card,"▧","Истории",()->startActivity(new Intent(this,StoriesActivity.class)));')
+    'menuRow(card,"◯","Мой профиль",()->startActivityForResult(new Intent(this,StoriesActivity.class),REQ_CONTACT_STORIES));'
+    'menuRow(card,"▧","Истории",()->startActivity(new Intent(this,StoriesActivity.class).putExtra("archive",true)));'
+    'menuRow(card,"⚙","Настройки аккаунта",this::showAccountSettings);')
 
 one(MAIN,
     'bar.addView(words,new LinearLayout.LayoutParams(0,dp(48),1));',
