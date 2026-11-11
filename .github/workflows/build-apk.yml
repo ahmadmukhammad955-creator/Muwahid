@@ -129,6 +129,25 @@ jobs:
           MUWAHID_FCM_PROJECT_ID: ${{ secrets.MUWAHID_FCM_PROJECT_ID }}
         run: cd Muwahid && gradle --no-daemon assembleDebug assembleDebugAndroidTest
 
+      - name: Audit emoji picker test and implementation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          sources = [
+              (Path("Muwahid/app/src/androidTest/java/com/muwahid/app/SmokeInstrumentation.java"), "Emoji picker did not open"),
+              (Path("Muwahid/app/src/main/java/com/muwahid/app/MainActivity.java"), "private void showPlainEmojiPickerWithCatalog("),
+              (Path("Muwahid/app/src/main/java/com/muwahid/app/MainActivity.java"), "private void showPlainEmojiPicker("),
+          ]
+          for path, needle in sources:
+              lines = path.read_text(encoding="utf-8").splitlines()
+              matches = [i for i, line in enumerate(lines) if needle in line]
+              print(f"EMOJI_AUDIT: {path.name} {needle!r}, matches={len(matches)}")
+              for index in matches[:2]:
+                  for line_number in range(max(0,index-18), min(len(lines),index+37)):
+                      print(f"{line_number+1}: {lines[line_number]}")
+          PY
+
       - name: Build signed release APK
         if: ${{ github.ref == 'refs/heads/main' && env.MUWAHID_STABLE_SIGNING == 'true' }}
         env:
@@ -207,10 +226,14 @@ jobs:
             adb wait-for-device
             adb install -r Muwahid/app/build/outputs/apk/debug/app-debug.apk
             adb install -r Muwahid/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > smoke-android15.txt
+            adb shell am instrument -w com.muwahid.app.test/com.muwahid.app.SmokeInstrumentation > smoke-android15.txt || true
             cat smoke-android15.txt
-            grep -F "MW_SMOKE_OK: ${EXPECTED_VERSION_NAME}" smoke-android15.txt
+            adb logcat -d > logcat-android15.txt || true
             adb logcat -d -s AndroidRuntime:E > crash-android15.txt || true
+            adb shell uiautomator dump /sdcard/window.xml || true
+            adb pull /sdcard/window.xml ui-android15.xml || true
+            adb exec-out screencap -p > screenshot-android15.png || true
+            grep -F "MW_SMOKE_OK: ${EXPECTED_VERSION_NAME}" smoke-android15.txt
             ! grep -q 'FATAL EXCEPTION' crash-android15.txt || { cat crash-android15.txt; exit 1; }
 
       - name: Upload installable debug APK
@@ -242,6 +265,9 @@ jobs:
             upgrade-result.txt
             smoke-android15.txt
             crash-android15.txt
+            logcat-android15.txt
+            ui-android15.xml
+            screenshot-android15.png
           if-no-files-found: warn
 
       - name: Publish signed update
