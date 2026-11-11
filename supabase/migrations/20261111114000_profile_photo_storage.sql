@@ -31,7 +31,7 @@ drop policy if exists mw_profile_image_insert on storage.objects;
 create policy mw_profile_image_insert on storage.objects for insert to authenticated
 with check (
   bucket_id='mw-profile-images'
-  and name ~ ('^'||(select auth.uid())::text||'/(avatar|cover)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.jpg$')
+  and name ~ ('^'||(select auth.uid())::text||'/(avatar|cover)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[.]jpg$')
   and owner_id=(select auth.uid())::text
 );
 
@@ -51,7 +51,7 @@ begin
   perform mw_private.require_mfa();
   if v_me is null then raise exception 'not_authenticated'; end if;
   if p_kind not in ('avatar','cover') then raise exception 'invalid_profile_image_kind'; end if;
-  if p_path is null or p_path !~ ('^'||v_me::text||'/'||p_kind||'/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.jpg$')
+  if p_path is null or p_path !~ ('^'||v_me::text||'/'||p_kind||'/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[.]jpg$')
     then raise exception 'invalid_profile_image_path'; end if;
   if not exists(select 1 from storage.objects o where o.bucket_id='mw-profile-images'
                    and o.name=p_path and o.owner_id=v_me::text and o.metadata->>'mimetype'='application/octet-stream')
