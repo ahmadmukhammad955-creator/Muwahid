@@ -62,6 +62,39 @@ public final class StoriesActivity extends Activity {
             ui.postDelayed(this,250);
         }
     };
+    private TextView presenceLabel;
+    private boolean profileForeground=false;
+    private final Runnable presenceRefresh=new Runnable(){
+        @Override public void run(){
+            if(destroyed||!profileForeground)return;
+            io.execute(()->{
+                try{
+                    api.rpc("mw_presence_set",new JSONObject().put("p_online",true));
+                    JSONObject profile=(JSONObject)api.rpc(profileChatId.isEmpty()?"mw_self_profile":"mw_contact_profile",
+                        profileChatId.isEmpty()?new JSONObject():new JSONObject().put("p_chat",profileChatId));
+                    boolean online=profile.optBoolean("online",false);
+                    ui.post(()->{if(!destroyed&&profileForeground&&presenceLabel!=null){
+                        presenceLabel.setText(online?"●  Онлайн":"Не в сети");
+                        presenceLabel.setTextColor(online?0xFF27D486:SECONDARY);
+                    }});
+                }catch(Exception ignored){ui.post(()->{if(!destroyed&&profileForeground&&presenceLabel!=null){
+                    presenceLabel.setText("Статус недоступен");presenceLabel.setTextColor(SECONDARY);
+                }});}
+            });
+            ui.postDelayed(this,20000);
+        }
+    };
+    @Override protected void onResume(){
+        super.onResume();if(api==null||!api.signedIn()||AppLock.guard(this))return;
+        profileForeground=true;ui.removeCallbacks(presenceRefresh);ui.post(presenceRefresh);
+    }
+    @Override protected void onPause(){
+        profileForeground=false;ui.removeCallbacks(presenceRefresh);
+        if(api!=null&&api.signedIn()&&!io.isShutdown())io.execute(()->{
+            try{api.rpc("mw_presence_set",new JSONObject().put("p_online",false));}catch(Exception ignored){}
+        });
+        super.onPause();
+    }
     private boolean destroyed=false;
     private boolean photoEditorLoading=false;
     private AlertDialog photoDialog;
@@ -290,15 +323,15 @@ public final class StoriesActivity extends Activity {
         final String name=displayName;
         final boolean self=profileChatId.isEmpty() || api.uid().equals(contact.optString("id",""));
         FrameLayout hero=new FrameLayout(this);
-        hero.setBackground(rounded(PANEL,21));hero.setClipToOutline(true);
+        hero.setBackgroundColor(BG);
         View skyline=new View(this);
         skyline.setBackgroundColor(BG);
-        FrameLayout.LayoutParams skyP=new FrameLayout.LayoutParams(-1,dp(171),Gravity.TOP);
+        FrameLayout.LayoutParams skyP=new FrameLayout.LayoutParams(-1,dp(125),Gravity.TOP);
         hero.addView(skyline,skyP);
         ImageView coverPhoto=new ImageView(this);
         coverPhoto.setScaleType(ImageView.ScaleType.CENTER_CROP);
         coverPhoto.setVisibility(View.GONE);
-        hero.addView(coverPhoto,new FrameLayout.LayoutParams(-1,dp(171),Gravity.TOP));
+        hero.addView(coverPhoto,new FrameLayout.LayoutParams(-1,dp(125),Gravity.TOP));
         if(self){
             skyline.setContentDescription("Изменить обложку профиля");
             skyline.setOnClickListener(v->chooseProfilePhoto("cover"));
@@ -350,7 +383,7 @@ public final class StoriesActivity extends Activity {
             avatarEdit.setTranslationX(dp(43));ep.bottomMargin=dp(3);hero.addView(avatarEdit,ep);
             avatarEdit.setOnClickListener(v->chooseProfilePhoto("avatar"));
         }
-        body.addView(hero,new LinearLayout.LayoutParams(-1,dp(233)));
+        body.addView(hero,new LinearLayout.LayoutParams(-1,dp(155)));
 
         TextView display=visualText(name,25,FG,true);
         display.setGravity(Gravity.CENTER);display.setSingleLine(true);
@@ -364,12 +397,11 @@ public final class StoriesActivity extends Activity {
             LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);
             hp.topMargin=dp(3);body.addView(handle,hp);
         }
-        if(contact.has("online")&&contact.optBoolean("online",false)){
-            TextView online=visualText("●  Онлайн",13,0xFF27D486,false);
-            online.setGravity(Gravity.CENTER);
-            LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2);
-            sp.topMargin=dp(8);body.addView(online,sp);
-        }
+        boolean isOnline=contact.optBoolean("online",false);
+        presenceLabel=visualText(isOnline?"●  Онлайн":"Не в сети",13,isOnline?0xFF27D486:SECONDARY,false);
+        presenceLabel.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams presenceP=new LinearLayout.LayoutParams(-1,-2);
+        presenceP.topMargin=dp(8);body.addView(presenceLabel,presenceP);
         LinearLayout actions=horizontal();
         LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(66));
         ap.topMargin=dp(16);body.addView(actions,ap);
@@ -1425,5 +1457,5 @@ public final class StoriesActivity extends Activity {
         });
     }
     @Override public void onBackPressed(){if(viewing)renderFeed();else returnFromScreen();}
-    @Override protected void onDestroy(){destroyed=true;if(photoDialog!=null)photoDialog.dismiss();viewing=false;stopPlayback();io.shutdownNow();thumbnailWork.shutdownNow();thumbnailCache.evictAll();super.onDestroy();}
+    @Override protected void onDestroy(){destroyed=true;ui.removeCallbacks(presenceRefresh);if(photoDialog!=null)photoDialog.dismiss();viewing=false;stopPlayback();io.shutdownNow();thumbnailWork.shutdownNow();thumbnailCache.evictAll();super.onDestroy();}
 }
