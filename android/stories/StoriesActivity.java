@@ -373,9 +373,9 @@ public final class StoriesActivity extends Activity {
         LinearLayout actions=horizontal();
         LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(66));
         ap.topMargin=dp(16);body.addView(actions,ap);
-        addQuickAction(actions,"chat","Чат",()->finish(),true);
-        addQuickAction(actions,"call","Звонок",()->startContactCall("audio"),!self);
-        addQuickAction(actions,"video","Видео",()->startContactCall("video"),!self);
+        addQuickAction(actions,"chat","Чат",()->profileAction("chat"),true);
+        addQuickAction(actions,"call","Звонок",()->profileAction("audio"),true);
+        addQuickAction(actions,"video","Видео",()->profileAction("video"),true);
         addQuickAction(actions,"share","Поделиться",this::shareContact,true);
 
         LinearLayout heading=horizontal();
@@ -398,14 +398,142 @@ public final class StoriesActivity extends Activity {
                   .setTitle("О себе").setMessage(bio)
                   .setPositiveButton("Закрыть",null).show());
         }
+        addInfoRow(details,"▧","Медиа, файлы и ссылки","",()->selectProfileChat("media"));
         // Display only actions backed by an actual Android or server operation.
         if(self){
-            addInfoRow(details,"✎","Изменить профиль","",this::editOwnProfile);
             addInfoRow(details,"◇","Конфиденциальность","",()->startActivity(new Intent(this,PrivacyActivity.class)));
             addInfoRow(details,"⚙","Настройки профиля","",this::openAccountSettings);
         }else{
             addInfoRow(details,"♢","Блокировка контакта","",this::confirmBlock);
         }
+    }
+    private boolean selectingProfileChat=false;
+    private void profileAction(String action){
+        if(profileChatId.isEmpty())selectProfileChat(action);
+        else openProfileChatAction(profileChatId,contact.optString("display_name",personName),action);
+    }
+    private void selectProfileChat(String action){
+        if(!profileChatId.isEmpty()){
+            openProfileChatAction(profileChatId,contact.optString("display_name",personName),action);return;
+        }
+        if(selectingProfileChat)return;selectingProfileChat=true;
+        io.execute(()->{
+            try{
+                JSONArray chats=(JSONArray)api.rpc("mw_chat_list",new JSONObject());
+                ui.post(()->{
+                    selectingProfileChat=false;if(destroyed)return;
+                    if(chats.length()==0){
+                        new AlertDialog.Builder(this).setTitle("Контакты")
+                            .setMessage("Сначала добавьте собеседника в Muwahid.")
+                            .setPositiveButton("Открыть контакты",(d,w)->startActivity(new Intent(this,MainActivity.class)
+                                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("open_contacts",true)))
+                            .setNegativeButton("Отмена",null).show();return;
+                    }
+                    String[] names=new String[chats.length()];
+                    for(int k=0;k<names.length;k++)names[k]=chats.optJSONObject(k).optString("display_name","Контакт");
+                    new AlertDialog.Builder(this).setTitle("Выберите собеседника")
+                        .setItems(names,(d,index)->{JSONObject chat=chats.optJSONObject(index);
+                            openProfileChatAction(chat.optString("id"),names[index],action);})
+                        .setNegativeButton("Отмена",null).show();
+                });
+            }catch(Exception e){ui.post(()->selectingProfileChat=false);error(e);}
+        });
+    }
+    private void openProfileChatAction(String chat,String name,String action){
+        if("chat".equals(action)){
+            startActivity(new Intent(this,MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra("open_chat_id",chat).putExtra("open_chat_name",name));return;
+        }
+        if("media".equals(action)){openMediaList(chat,name);return;}
+        if(selectingProfileChat)return;selectingProfileChat=true;
+        io.execute(()->{
+            try{
+                Object value=api.rpc("mw_e2ee_peer_key",new JSONObject().put("p_chat",chat));
+                String peer=value instanceof String?(String)value:"";
+                if(peer.isEmpty()||!crypto.isPeerVerified(api.uid(),chat,peer))
+                    throw new SecurityException("Перед звонком откройте чат и подтвердите код безопасности собеседника.");
+                ui.post(()->{selectingProfileChat=false;if(!destroyed)startActivity(new Intent(this,CallActivity.class)
+                    .putExtra("chat_id",chat).putExtra("peer_name",name).putExtra("kind",action).putExtra("incoming",false));});
+            }catch(Exception e){ui.post(()->selectingProfileChat=false);error(e);}
+        });
+    }
+    private void openMediaList(String chat,String name){
+        LinearLayout content=vertical();content.setPadding(dp(14),dp(10),dp(14),dp(10));
+        ScrollView scroll=new ScrollView(this);scroll.addView(content);
+        TextView status=text("Загрузка…",14,Color.DKGRAY);content.addView(status);
+        TextView more=button("Загрузить ещё");content.addView(more);more.setEnabled(false);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Медиа, файлы и ссылки · "+name)
+            .setView(scroll).setNegativeButton("Закрыть",null).create();
+        final long[] before={0};final int[] found={0};final boolean[] busy={false};
+        Runnable load=new Runnable(){public void run(){
+            if(busy[0])return;busy[0]=true;more.setEnabled(false);status.setText("Загрузка…");
+            io.execute(()->{
+                try{
+                    Object value=api.rpc("mw_e2ee_peer_key",new JSONObject().put("p_chat",chat));
+                    String peer=value instanceof String?(String)value:"";
+                    if(peer.isEmpty()||!crypto.isPeerVerified(api.uid(),chat,peer))
+                        throw new SecurityException("Откройте чат и подтвердите код безопасности для просмотра вложений.");
+                    JSONObject args=new JSONObject().put("p_chat",chat);if(before[0]>0)args.put("p_before",before[0]);
+                    JSONArray page=(JSONArray)api.rpc("mw_messages_get",args);
+                    java.util.ArrayList<JSONObject> items=new java.util.ArrayList<>();
+                    long oldest=Long.MAX_VALUE;int unreadable=0;
+                    for(int k=0;k<page.length();k++){
+                        JSONObject message=page.getJSONObject(k);oldest=Math.min(oldest,message.getLong("id"));
+                        String body;
+                        try{body=crypto.decryptText(api.uid(),chat,peer,message.optString("body"));}catch(Exception badKey){unreadable++;continue;}
+                        if(body.startsWith("{")){
+                            try{JSONObject media=new JSONObject(body);
+                                if("media".equals(media.optString("mw_kind"))&&!media.optString("path").isEmpty()){
+                                    items.add(media);continue;
+                                }
+                            }catch(JSONException ignored){}
+                        }
+                        java.util.regex.Matcher links=android.util.Patterns.WEB_URL.matcher(body);
+                        while(links.find()){
+                            String url=links.group();
+                            if(url.startsWith("https://")||url.startsWith("http://"))items.add(new JSONObject().put("url",url));
+                        }
+                    }
+                    final long cursor=oldest;final int failed=unreadable;
+                    ui.post(()->{
+                        busy[0]=false;if(destroyed||!dialog.isShowing())return;
+                        if(cursor!=Long.MAX_VALUE)before[0]=cursor;
+                        for(JSONObject item:items){
+                            String url=item.optString("url");String title=url.isEmpty()?item.optString("name","Файл"):url;
+                            TextView row=text(title,16,Color.rgb(20,90,140));row.setPadding(0,dp(14),0,dp(14));
+                            content.addView(row,content.getChildCount()-1);found[0]++;
+                            row.setOnClickListener(v->{
+                                if(!url.isEmpty()){
+                                    try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(url)));}catch(Exception e){error(e);}
+                                }else openProfileMedia(chat,peer,item);
+                            });
+                        }
+                        boolean hasMore=page.length()==100;
+                        status.setText((found[0]==0?(hasMore?"В этой части переписки вложений нет":"Вложений и ссылок не найдено"):("Найдено: "+found[0]))
+                            +(failed>0?". Часть сообщений недоступна для расшифровки.":""));
+                        more.setVisibility(hasMore?View.VISIBLE:View.GONE);more.setEnabled(hasMore);
+                    });
+                }catch(Exception e){ui.post(()->{busy[0]=false;if(destroyed||!dialog.isShowing())return;
+                    status.setText(e.getMessage());more.setText("Повторить");more.setEnabled(true);});}
+            });
+        }};
+        more.setOnClickListener(v->load.run());dialog.show();load.run();
+    }
+    private void openProfileMedia(String chat,String peer,JSONObject media){
+        backgroundWork(()->{
+            byte[] encrypted=null,raw=null;
+            try{
+                encrypted=api.downloadMedia(media.getString("path"));raw=crypto.decryptBytes(api.uid(),chat,peer,encrypted);
+                File directory=new File(getCacheDir(),"media");if(!directory.exists()&&!directory.mkdirs())throw new IOException("Не удалось открыть кэш");
+                String name=media.optString("name","file").replaceAll("[^A-Za-zА-Яа-я0-9._ -]","_");
+                File file=new File(directory,UUID.randomUUID()+"_"+name);
+                try(FileOutputStream output=new FileOutputStream(file)){output.write(raw);}
+                Uri uri=androidx.core.content.FileProvider.getUriForFile(this,getPackageName()+".files",file);
+                ui.post(()->{if(!destroyed){try{startActivity(new Intent(Intent.ACTION_VIEW).setDataAndType(uri,media.optString("mime","application/octet-stream"))
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));}catch(Exception e){error(e);}}});
+            }finally{if(encrypted!=null)Arrays.fill(encrypted,(byte)0);if(raw!=null)Arrays.fill(raw,(byte)0);}
+        });
     }
     private void chooseProfilePhoto(String kind){
         if(destroyed||archiveScreen||!profileChatId.isEmpty())return;
