@@ -158,6 +158,10 @@ snippet='''    private void checkStoryMediaEncryption() throws Exception{
 '''
 one(TEST,'    private Activity activity;',snippet+'    private Activity activity;')
 one(TEST,'            checkProfileQr();','            checkProfileQr();\n            checkStoryMediaEncryption();\n            ProfileCropChecks.run();')
+
+# Preserve the underlying UI exception in CI instead of only its reflection wrapper.
+one(TEST, '            result.putString("stream", "MW_SMOKE_FAILED: " + e.getClass().getName() + ": " + String.valueOf(e.getMessage()));', '            result.putString("stream", "MW_SMOKE_FAILED: " + android.util.Log.getStackTraceString(e));')
+
 # Separate signed update candidate. The 0.13.41 baseline must stay unchanged.
 # Only the assembled corrected app is marked as 0.13.44 (79) for a safe in-place update.
 one(Path("app/build.gradle"),"versionCode 76","versionCode 79")
