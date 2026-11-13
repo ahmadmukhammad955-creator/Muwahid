@@ -63,6 +63,8 @@ public final class StoriesActivity extends Activity {
         }
     };
     private boolean destroyed=false;
+    private boolean photoEditorLoading=false;
+    private AlertDialog photoDialog;
     private boolean checkingStoryAudience=false;
 
     @Override public void onCreate(Bundle state){
@@ -289,30 +291,8 @@ public final class StoriesActivity extends Activity {
         final boolean self=profileChatId.isEmpty() || api.uid().equals(contact.optString("id",""));
         FrameLayout hero=new FrameLayout(this);
         hero.setBackground(rounded(PANEL,21));hero.setClipToOutline(true);
-        View skyline=new View(this){
-            private final Paint paint=new Paint(3);
-            @Override protected void onDraw(Canvas c){
-                int w=getWidth(),h=getHeight();
-                paint.setShader(new LinearGradient(0,0,0,h,
-                    new int[]{0xFF15283D,0xFF594657,0xFFBF7562,0xFF111E2B},null,Shader.TileMode.CLAMP));
-                c.drawRect(0,0,w,h,paint);paint.setShader(null);
-                paint.setColor(0xCDE8E2D8);
-                c.drawCircle(w*.83f,h*.24f,dp(10),paint);
-                paint.setColor(0xFF101A28);
-                c.drawRect(0,h*.84f,w,h,paint);
-                float center=w*.48f,ground=h*.87f;
-                paint.setStyle(Paint.Style.FILL);
-                c.drawRect(center-dp(63),ground-dp(26),center+dp(63),ground,paint);
-                c.drawOval(center-dp(56),ground-dp(75),center+dp(56),ground-dp(6),paint);
-                for(int side=-1;side<=1;side+=2){
-                    float x=center+side*dp(112);
-                    c.drawRect(x-dp(6),ground-dp(108),x+dp(6),ground,paint);
-                    Path cone=new Path();cone.moveTo(x-dp(7),ground-dp(108));cone.lineTo(x,ground-dp(151));
-                    cone.lineTo(x+dp(7),ground-dp(108));cone.close();c.drawPath(cone,paint);
-                }
-                paint.setColor(0x50101821);c.drawRect(0,h*.81f,w,h,paint);
-            }
-        };
+        View skyline=new View(this);
+        skyline.setBackgroundColor(BG);
         FrameLayout.LayoutParams skyP=new FrameLayout.LayoutParams(-1,dp(171),Gravity.TOP);
         hero.addView(skyline,skyP);
         ImageView coverPhoto=new ImageView(this);
@@ -358,6 +338,18 @@ public final class StoriesActivity extends Activity {
         }
         String avatarPath=contact.optString("avatar_path","");
         if(!avatarPath.isEmpty())loadProfilePhoto(avatarPath,avatarPhoto);
+        if(self){
+            TextView coverEdit=button("Изменить обложку");
+            coverEdit.setTextSize(12);coverEdit.setContentDescription("Изменить обложку профиля");
+            FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(-2,dp(48),Gravity.TOP|Gravity.RIGHT);
+            cp.topMargin=dp(8);cp.rightMargin=dp(8);hero.addView(coverEdit,cp);
+            coverEdit.setOnClickListener(v->chooseProfilePhoto("cover"));
+            TextView avatarEdit=button("✎");
+            avatarEdit.setTextSize(23);avatarEdit.setPadding(0,0,0,0);avatarEdit.setBackground(rounded(0xFF104C6D,24));avatarEdit.setContentDescription("Изменить фотографию профиля");
+            FrameLayout.LayoutParams ep=new FrameLayout.LayoutParams(dp(48),dp(48),Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);
+            avatarEdit.setTranslationX(dp(43));ep.bottomMargin=dp(3);hero.addView(avatarEdit,ep);
+            avatarEdit.setOnClickListener(v->chooseProfilePhoto("avatar"));
+        }
         body.addView(hero,new LinearLayout.LayoutParams(-1,dp(233)));
 
         TextView display=visualText(name,25,FG,true);
@@ -384,6 +376,7 @@ public final class StoriesActivity extends Activity {
         addQuickAction(actions,"chat","Чат",()->finish(),true);
         addQuickAction(actions,"call","Звонок",()->startContactCall("audio"),!self);
         addQuickAction(actions,"video","Видео",()->startContactCall("video"),!self);
+        addQuickAction(actions,"share","Поделиться",this::shareContact,true);
 
         LinearLayout heading=horizontal();
         LinearLayout.LayoutParams headingP=new LinearLayout.LayoutParams(-1,dp(47));
@@ -408,7 +401,7 @@ public final class StoriesActivity extends Activity {
         // Display only actions backed by an actual Android or server operation.
         if(self){
             addInfoRow(details,"✎","Изменить профиль","",this::editOwnProfile);
-            addInfoRow(details,"◇","Конфиденциальность","",this::openAccountSettings);
+            addInfoRow(details,"◇","Конфиденциальность","",()->startActivity(new Intent(this,PrivacyActivity.class)));
             addInfoRow(details,"⚙","Настройки профиля","",this::openAccountSettings);
         }else{
             addInfoRow(details,"♢","Блокировка контакта","",this::confirmBlock);
@@ -425,45 +418,90 @@ public final class StoriesActivity extends Activity {
         catch(Exception e){error(e);}
     }
     private void previewProfilePhoto(Uri source,boolean cover){
-        if(destroyed||archiveScreen||!profileChatId.isEmpty())return;
+        if(destroyed||archiveScreen||!profileChatId.isEmpty()||photoEditorLoading||photoDialog!=null)return;
+        photoEditorLoading=true;
         io.execute(()->{
             try{
-                final byte[] prepared=ProfilePhotoCodec.prepare(getContentResolver(),source,cover);
-                final Bitmap preview=ProfilePhotoCodec.decode(prepared);
+                final Bitmap original=ProfilePhotoCodec.readSource(this,source);
                 ui.post(()->{
-                    if(destroyed||isFinishing()){Arrays.fill(prepared,(byte)0);preview.recycle();return;}
-                    ImageView photo=new ImageView(this);
-                    photo.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                    photo.setImageBitmap(preview);
-                    if(!cover){
-                        GradientDrawable round=new GradientDrawable();
-                        round.setShape(GradientDrawable.OVAL);round.setColor(0xFF17283B);
-                        photo.setBackground(round);photo.setClipToOutline(true);
-                    }
-                    LinearLayout holder=vertical();
-                    holder.setGravity(Gravity.CENTER);
-                    holder.setPadding(dp(20),dp(14),dp(20),dp(14));
-                    holder.addView(photo,new LinearLayout.LayoutParams(cover?-1:dp(230),dp(cover?180:230)));
-                    String kind=cover?"cover":"avatar";
-                    new AlertDialog.Builder(this)
-                        .setTitle(cover?"Новая обложка":"Новое фото профиля")
-                        .setView(holder)
-                        .setNegativeButton("Отмена",(d,w)->Arrays.fill(prepared,(byte)0))
-                        .setPositiveButton("Сохранить",(d,w)->backgroundWork(()->{
-                            try{
-                                String path=api.uid()+"/"+kind+"/"+UUID.randomUUID().toString()+".jpg";
-                                api.uploadProfileImage(path,prepared);
-                                api.rpc("mw_profile_set_image",
-                                    new JSONObject().put("p_kind",kind).put("p_path",path));
-                                ui.post(()->{if(!destroyed){
-                                    Toast.makeText(this,cover?"Обложка обновлена":"Фото профиля обновлено",Toast.LENGTH_SHORT).show();
-                                    reload();
-                                }});
-                            }finally{Arrays.fill(prepared,(byte)0);}
-                        }))
-                        .show();
+                    photoEditorLoading=false;
+                    if(destroyed||isFinishing()){original.recycle();return;}
+                    final ProfileCropView crop=new ProfileCropView(this,original,cover);
+                    LinearLayout holder=vertical();holder.setPadding(dp(16),dp(8),dp(16),dp(8));
+                    holder.addView(crop,new LinearLayout.LayoutParams(-1,dp(cover?190:260)));
+                    TextView hint=text("Перемещайте фото пальцем. Масштаб можно изменить ползунком.",14,Color.DKGRAY);
+                    holder.addView(hint);
+                    SeekBar zoom=new SeekBar(this);zoom.setMax(400);zoom.setContentDescription("Масштаб фотографии");
+                    holder.addView(zoom);
+                    zoom.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+                        public void onProgressChanged(SeekBar bar,int value,boolean user){if(user)crop.setZoom(1+value/100f);}
+                        public void onStartTrackingTouch(SeekBar bar){}
+                        public void onStopTrackingTouch(SeekBar bar){}
+                    });
+                    LinearLayout directions=horizontal();holder.addView(directions);
+                    String[] labels={"←","↑","↓","→"};String[] descriptions={"Сдвинуть область влево","Сдвинуть область вверх","Сдвинуть область вниз","Сдвинуть область вправо"};
+                    float[] dx={-.05f,0,0,.05f},dy={0,-.05f,.05f,0};
+                    for(int k=0;k<4;k++){final int index=k;Button move=new Button(this);move.setText(labels[k]);move.setContentDescription(descriptions[k]);directions.addView(move,new LinearLayout.LayoutParams(0,dp(48),1));move.setOnClickListener(v->crop.moveBy(dx[index],dy[index]));}
+                    TextView status=text("",14,Color.DKGRAY);holder.addView(status);
+                    final boolean[] saving={false},closed={false};
+                    // Retain an uploaded path on a failed RPC: retry confirmation without
+                    // uploading a second object after an ambiguous network response.
+                    final String[] uploadedPath={null};
+                    AlertDialog dialog=new AlertDialog.Builder(this)
+                        .setTitle(cover?"Изменить обложку":"Изменить фото профиля")
+                        .setView(holder).setNegativeButton("Отмена",null)
+                        .setNeutralButton("Сбросить",null).setPositiveButton("Сохранить",null).create();
+                    photoDialog=dialog;
+                    dialog.setOnDismissListener(d->{closed[0]=true;photoDialog=null;if(!saving[0])original.recycle();});
+                    dialog.setOnShowListener(d->{
+                        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v->{crop.reset();zoom.setProgress(0);});
+                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+                            if(saving[0])return;saving[0]=true;
+                            final RectF selected=crop.crop();
+                            dialog.setCancelable(false);
+                            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
+                            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+                            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setEnabled(false);
+                            crop.setEnabled(false);zoom.setEnabled(false);
+                            for(int k=0;k<directions.getChildCount();k++)directions.getChildAt(k).setEnabled(false);
+                            status.setText("Сохраняем фотографию…");
+                            io.execute(()->{
+                                byte[] prepared=null;
+                                try{
+                                    String kind=cover?"cover":"avatar";
+                                    if(uploadedPath[0]==null){
+                                        prepared=ProfilePhotoCodec.encode(original,cover,selected);
+                                        String path=api.uid()+"/"+kind+"/"+UUID.randomUUID()+".jpg";
+                                        api.uploadProfileImage(path,prepared);uploadedPath[0]=path;
+                                    }
+                                    api.rpc("mw_profile_set_image",new JSONObject().put("p_kind",kind).put("p_path",uploadedPath[0]));
+                                    ui.post(()->{
+                                        saving[0]=false;
+                                        if(closed[0]){original.recycle();return;}
+                                        dialog.dismiss();
+                                        if(!destroyed){Toast.makeText(this,"Фотография сохранена",Toast.LENGTH_SHORT).show();reload();}
+                                    });
+                                }catch(Exception error){
+                                    ui.post(()->{
+                                        saving[0]=false;
+                                        if(closed[0]){original.recycle();return;}
+                                        status.setText(error.getMessage()==null?"Не удалось сохранить. Повторите попытку.":error.getMessage());
+                                        dialog.setCancelable(true);
+                                        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(true);
+                                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText("Повторить сохранение");
+                                        boolean editable=uploadedPath[0]==null;
+                                        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setEnabled(editable);
+                                        crop.setEnabled(editable);zoom.setEnabled(editable);
+                                        for(int k=0;k<directions.getChildCount();k++)directions.getChildAt(k).setEnabled(editable);
+                                    });
+                                }finally{if(prepared!=null)Arrays.fill(prepared,(byte)0);}
+                            });
+                        });
+                    });
+                    dialog.show();
                 });
-            }catch(Exception e){error(e);}
+            }catch(Exception e){ui.post(()->photoEditorLoading=false);error(e);}
         });
     }
     private void loadProfilePhoto(String path,ImageView target){
@@ -1259,5 +1297,5 @@ public final class StoriesActivity extends Activity {
         });
     }
     @Override public void onBackPressed(){if(viewing)renderFeed();else returnFromScreen();}
-    @Override protected void onDestroy(){destroyed=true;viewing=false;stopPlayback();io.shutdownNow();thumbnailWork.shutdownNow();thumbnailCache.evictAll();super.onDestroy();}
+    @Override protected void onDestroy(){destroyed=true;if(photoDialog!=null)photoDialog.dismiss();viewing=false;stopPlayback();io.shutdownNow();thumbnailWork.shutdownNow();thumbnailCache.evictAll();super.onDestroy();}
 }

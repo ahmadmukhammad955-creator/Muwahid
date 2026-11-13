@@ -22,10 +22,12 @@ def one(path,old,new):
         raise RuntimeError(f"Expected exactly one occurrence of {old[:130]!r} in {path}, got {n}")
     path.write_text(s.replace(old,new),encoding="utf-8")
 
-for name in ("StoryMediaCodec.java","StoriesActivity.java","ProfilePhotoCodec.java"):
+for name in ("StoryMediaCodec.java","StoriesActivity.java","ProfilePhotoCodec.java","ProfileCropView.java"):
     src=SOURCE/name
     if not src.is_file():raise RuntimeError(f"Missing real source {src}")
     (APP/name).write_bytes(src.read_bytes())
+
+(TEST.parent/"ProfileCropChecks.java").write_bytes((SOURCE/"ProfileCropChecks.java").read_bytes())
 
 # Storage transport uses the existing authenticated API session and private
 # bucket. Stories always upload AES-GCM ciphertext as application/octet-stream.
@@ -155,7 +157,7 @@ snippet='''    private void checkStoryMediaEncryption() throws Exception{
 
 '''
 one(TEST,'    private Activity activity;',snippet+'    private Activity activity;')
-one(TEST,'            checkProfileQr();','            checkProfileQr();\n            checkStoryMediaEncryption();')
+one(TEST,'            checkProfileQr();','            checkProfileQr();\n            checkStoryMediaEncryption();\n            ProfileCropChecks.run();')
 # Separate signed update candidate. The 0.13.41 baseline must stay unchanged.
 # Only the assembled corrected app is marked as 0.13.44 (79) for a safe in-place update.
 one(Path("app/build.gradle"),"versionCode 76","versionCode 79")
@@ -170,3 +172,4 @@ assert 'uploadProfileImage(String path' in API.read_text(encoding="utf-8")
 assert 'uploadStory(String objectPath' in API.read_text(encoding="utf-8")
 assert 'android:exported="false"' in MANIFEST.read_text(encoding="utf-8")
 print("MW_NATIVE_STORIES_INTEGRATED: encrypted media, contact profile, story navigation, real call routes and security tests")
+

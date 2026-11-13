@@ -20,62 +20,76 @@ final class ProfilePhotoCodec {
     private static final int MAX_RESULT_BYTES=6*1024*1024;
     private ProfilePhotoCodec(){}
 
-    static byte[] prepare(ContentResolver resolver, Uri uri, boolean cover) throws IOException {
+    static Bitmap readSource(android.content.Context context, Uri uri) throws IOException {
         byte[] source;
-        try(InputStream in=resolver.openInputStream(uri)){
+        try(InputStream in=context.getContentResolver().openInputStream(uri)){
             if(in==null)throw new IOException("Не удалось открыть фотографию");
-            ByteArrayOutputStream bytes=new ByteArrayOutputStream();
-            byte[] chunk=new byte[16384];
-            int n;
-            while((n=in.read(chunk))>=0){
-                if(n==0)continue;
+            ByteArrayOutputStream bytes=new ByteArrayOutputStream();byte[] chunk=new byte[16384];int n;
+            while((n=in.read(chunk))!=-1){
                 if(bytes.size()+n>MAX_SOURCE_BYTES)throw new IOException("Фотография больше 12 МБ");
                 bytes.write(chunk,0,n);
             }
             source=bytes.toByteArray();
         }
+        java.io.File temp=null;
+        Bitmap original=null;
         try{
-            BitmapFactory.Options size=new BitmapFactory.Options();
-            size.inJustDecodeBounds=true;
+            BitmapFactory.Options size=new BitmapFactory.Options();size.inJustDecodeBounds=true;
             BitmapFactory.decodeByteArray(source,0,source.length,size);
             if(size.outWidth<1||size.outHeight<1||size.outWidth>12000||size.outHeight>12000)
                 throw new IOException("Не поддерживается размер изображения");
-            final int outW=cover?1440:512, outH=cover?670:512;
-            BitmapFactory.Options options=new BitmapFactory.Options();
-            int maxSide=cover?2048:1400;
-            options.inSampleSize=1;
-            while(Math.max(size.outWidth,size.outHeight)/options.inSampleSize>maxSide*2)
-                options.inSampleSize*=2;
-            Bitmap original=BitmapFactory.decodeByteArray(source,0,source.length,options);
+            BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=1;
+            while(Math.max(size.outWidth,size.outHeight)/options.inSampleSize>2048)options.inSampleSize*=2;
+            original=BitmapFactory.decodeByteArray(source,0,source.length,options);
             if(original==null)throw new IOException("Формат фотографии не поддерживается");
-            Bitmap cropped=null;
-            try{
-                cropped=Bitmap.createBitmap(outW,outH,Bitmap.Config.ARGB_8888);
-                Canvas canvas=new Canvas(cropped);
-                canvas.drawColor(Color.rgb(20,28,38));
-                float aspect=(float)outW/outH;
-                int w=original.getWidth(),h=original.getHeight();
-                Rect src;
-                if((float)w/h>aspect){
-                    int cw=Math.max(1,Math.round(h*aspect));
-                    src=new Rect((w-cw)/2,0,(w+cw)/2,h);
-                }else{
-                    int ch=Math.max(1,Math.round(w/aspect));
-                    src=new Rect(0,(h-ch)/2,w,(h+ch)/2);
-                }
-                Paint paint=new Paint(Paint.FILTER_BITMAP_FLAG|Paint.ANTI_ALIAS_FLAG);
-                canvas.drawBitmap(original,src,new RectF(0,0,outW,outH),paint);
-                ByteArrayOutputStream out=new ByteArrayOutputStream();
-                if(!cropped.compress(Bitmap.CompressFormat.JPEG,86,out))
-                    throw new IOException("Не удалось подготовить фотографию");
-                byte[] jpeg=out.toByteArray();
-                if(jpeg.length>MAX_RESULT_BYTES)throw new IOException("Подготовленная фотография слишком большая");
-                return jpeg;
-            }finally{
-                if(cropped!=null)cropped.recycle();
-                original.recycle();
+            // File-based ExifInterface also works on API 23. The private temporary file
+            // is deleted immediately; the exported JPEG contains no source EXIF/GPS.
+            temp=java.io.File.createTempFile("profile_orientation_",".image",context.getCacheDir());
+            try(java.io.FileOutputStream out=new java.io.FileOutputStream(temp)){out.write(source);}
+            int orientation=1;
+            try{orientation=new android.media.ExifInterface(temp.getAbsolutePath())
+                .getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION,1);}catch(IOException ignored){}
+            android.graphics.Matrix m=new android.graphics.Matrix();
+            switch(orientation){
+                case 2:m.setScale(-1,1);break;
+                case 3:m.setRotate(180);break;
+                case 4:m.setScale(1,-1);break;
+                case 5:m.setRotate(90);m.postScale(-1,1);break;
+                case 6:m.setRotate(90);break;
+                case 7:m.setRotate(-90);m.postScale(-1,1);break;
+                case 8:m.setRotate(-90);break;
             }
-        }finally{Arrays.fill(source,(byte)0);}
+            Bitmap result=Bitmap.createBitmap(original,0,0,original.getWidth(),original.getHeight(),m,true);
+            if(result!=original)original.recycle();original=null;return result;
+        }finally{
+            if(original!=null)original.recycle();
+            if(temp!=null&&!temp.delete())temp.deleteOnExit();
+            Arrays.fill(source,(byte)0);
+        }
+    }
+
+    static RectF cropRect(int w,int h,boolean cover,float zoom,float cx,float cy){
+        float aspect=cover?1440f/670f:1f;
+        zoom=Math.max(1,Math.min(5,zoom));
+        float cw=Math.min(w,h*aspect)/zoom,ch=cw/aspect;
+        float left=Math.max(0,Math.min(w-cw,cx*w-cw/2));
+        float top=Math.max(0,Math.min(h-ch,cy*h-ch/2));
+        return new RectF(left,top,left+cw,top+ch);
+    }
+    static byte[] encode(Bitmap original,boolean cover,RectF crop) throws IOException {
+        int w=cover?1440:512,h=cover?670:512;
+        Bitmap output=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);
+        try{
+            Canvas canvas=new Canvas(output);canvas.drawColor(Color.rgb(20,28,38));
+            android.graphics.Matrix m=new android.graphics.Matrix();
+            m.setRectToRect(crop,new RectF(0,0,w,h),android.graphics.Matrix.ScaleToFit.FILL);
+            canvas.drawBitmap(original,m,new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG));
+            ByteArrayOutputStream bytes=new ByteArrayOutputStream();
+            if(!output.compress(Bitmap.CompressFormat.JPEG,86,bytes))throw new IOException("Не удалось подготовить фотографию");
+            byte[] jpeg=bytes.toByteArray();
+            if(jpeg.length>MAX_RESULT_BYTES)throw new IOException("Фотография слишком большая");
+            return jpeg;
+        }finally{output.recycle();}
     }
 
     static Bitmap decode(byte[] data) throws IOException {
@@ -91,3 +105,4 @@ final class ProfilePhotoCodec {
         return bitmap;
     }
 }
+
