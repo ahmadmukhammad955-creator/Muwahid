@@ -1,7 +1,7 @@
 {
-  "versionCode": 79,
-  "versionName": "0.13.44",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.44/Muwahid-0.13.44.apk",
-  "sha256": "dacf9d0014c0837d47d8e4c26fffea303baeb3115da1d8b7baca34a10a1f93f6",
-  "notes": "Профиль с тремя кнопками, загрузкой фотографий и обложки, архивом историй; сохранены чаты и пользовательские данные."
+  "versionCode": 80,
+  "versionName": "0.13.45",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.45/Muwahid-0.13.45.apk",
+  "sha256": "7074269788d5f31d21d920fe6e3b97c127d430b8ce25c19a9a337007303b0a50",
+  "notes": "Изменение аватара и обложки с настройкой кадра, реальные фотографии, истории и архив. Убраны старые неработающие плитки профиля. Чаты и данные сохранены."
 }
