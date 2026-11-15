@@ -156,6 +156,13 @@ snippet='''    private void checkStoryMediaEncryption() throws Exception{
 '''
 one(TEST,'    private Activity activity;',snippet+'    private Activity activity;')
 one(TEST,'            checkProfileQr();','            checkProfileQr();\n            checkStoryMediaEncryption();')
+# Preserve the full causal stack when an instrumentation smoke test fails.
+# Without this, Android 15 reports only InvocationTargetException and hides
+# the failing operation. The app itself is not changed by this diagnostic.
+one(TEST,
+    'result.putString("stream", "MW_SMOKE_FAILED: " + e.getClass().getName() + ": " + String.valueOf(e.getMessage()));',
+    'result.putString("stream", "MW_SMOKE_FAILED: " + e.getClass().getName() + ": " + String.valueOf(e.getMessage()) + "\\n" + android.util.Log.getStackTraceString(e));')
+
 # Separate signed update candidate. The 0.13.41 baseline must stay unchanged.
 # Only the assembled corrected app is marked as 0.13.44 (79) for a safe in-place update.
 one(Path("app/build.gradle"),"versionCode 76","versionCode 79")
