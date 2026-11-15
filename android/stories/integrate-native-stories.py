@@ -164,11 +164,11 @@ one(TEST,
     'result.putString("stream", "MW_SMOKE_FAILED: " + e.getClass().getName() + ": " + String.valueOf(e.getMessage()) + "\\n" + android.util.Log.getStackTraceString(e));')
 
 # Separate signed update candidate. The 0.13.41 baseline must stay unchanged.
-# Only the assembled corrected app is marked as 0.13.44 (79) for a safe in-place update.
-one(Path("app/build.gradle"),"versionCode 76","versionCode 79")
-one(Path("app/build.gradle"),"versionName '0.13.41'","versionName '0.13.44'")
-one(TEST,'"0.13.41".equals(BuildConfig.VERSION_NAME)','"0.13.44".equals(BuildConfig.VERSION_NAME)')
-one(TEST,'MW_SMOKE_OK: 0.13.41 ','MW_SMOKE_OK: 0.13.44 ')
+# Only the assembled corrected app is marked as 0.13.45 (80) for a safe in-place update.
+one(Path("app/build.gradle"),"versionCode 76","versionCode 80")
+one(Path("app/build.gradle"),"versionName '0.13.41'","versionName '0.13.45'")
+one(TEST,'"0.13.41".equals(BuildConfig.VERSION_NAME)','"0.13.45".equals(BuildConfig.VERSION_NAME)')
+one(TEST,'MW_SMOKE_OK: 0.13.41 ','MW_SMOKE_OK: 0.13.45 ')
 
 
 assert 'StoriesActivity.class' in MAIN.read_text(encoding="utf-8")
