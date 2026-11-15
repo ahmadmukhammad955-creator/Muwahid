@@ -324,6 +324,18 @@ public final class StoriesActivity extends Activity {
             skyline.setOnClickListener(v->chooseProfilePhoto("cover"));
             coverPhoto.setContentDescription("Изменить обложку профиля");
             coverPhoto.setOnClickListener(v->chooseProfilePhoto("cover"));
+            // Visible camera control, backed by the existing authenticated upload flow.
+            ImageView changeCover=new ImageView(this);
+            changeCover.setImageResource(android.R.drawable.ic_menu_camera);
+            changeCover.setColorFilter(FG);
+            changeCover.setPadding(dp(10),dp(10),dp(10),dp(10));
+            changeCover.setBackground(rounded(0xCC142234,12));
+            changeCover.setContentDescription("Изменить обложку профиля");
+            FrameLayout.LayoutParams cameraP=new FrameLayout.LayoutParams(
+                dp(43),dp(43),Gravity.TOP|Gravity.RIGHT);
+            cameraP.setMargins(0,dp(11),dp(11),0);
+            hero.addView(changeCover,cameraP);
+            changeCover.setOnClickListener(v->chooseProfilePhoto("cover"));
         }
         String coverPath=contact.optString("cover_path","");
         if(!coverPath.isEmpty())loadProfilePhoto(coverPath,coverPhoto);
@@ -392,9 +404,12 @@ public final class StoriesActivity extends Activity {
         heading.addView(storiesLabel,new LinearLayout.LayoutParams(0,-2,1));
         TextView archiveLink=visualText("◷  Архив",16,0xFFCFD9E6,false);
         archiveLink.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
-        heading.addView(archiveLink,new LinearLayout.LayoutParams(dp(96),dp(44)));
-        archiveLink.setOnClickListener(v->openArchiveScreen());
+        if(self){
+            heading.addView(archiveLink,new LinearLayout.LayoutParams(dp(96),dp(44)));
+            archiveLink.setOnClickListener(v->openArchiveScreen());
+        }
         renderStoryStrip(body,self);
+        renderProfileGallery(body);
         String bio=contact.optString("bio","");
         LinearLayout details=vertical();details.setBackground(rounded(0xFF131E29,18));
         LinearLayout.LayoutParams detailsP=new LinearLayout.LayoutParams(-1,-2);
@@ -646,6 +661,54 @@ public final class StoriesActivity extends Activity {
             tileP.rightMargin=dp(8);row.addView(card,tileP);
         }
     }
+    /**
+     * An image gallery backed by the actual encrypted story feed. Only photos
+     * explicitly pinned to the profile appear here; never use stock URLs,
+     * fake publications, or another user's private, unapproved media.
+     */
+    private void renderProfileGallery(LinearLayout body){
+        ArrayList<Integer> photos=new ArrayList<>();
+        for(int i=0;i<feed.length()&&photos.size()<6;i++){
+            JSONObject item=feed.optJSONObject(i);
+            if(item==null||!"image".equals(item.optString("media_kind",""))
+                ||!item.optBoolean("visible_on_profile",false))continue;
+            photos.add(i);
+        }
+        if(photos.isEmpty())return;
+        TextView heading=visualText("Галерея",18,FG,true);
+        LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);
+        hp.topMargin=dp(21);hp.bottomMargin=dp(10);
+        body.addView(heading,hp);
+
+        android.widget.GridLayout grid=new android.widget.GridLayout(this);
+        grid.setColumnCount(3);
+        int width=Math.max(dp(70),
+            (getResources().getDisplayMetrics().widthPixels-dp(28)-dp(24))/3);
+        for(int index:photos){
+            JSONObject item=feed.optJSONObject(index);
+            if(item==null)continue;
+            FrameLayout tile=new FrameLayout(this);
+            tile.setBackground(rounded(PANEL,13));
+            tile.setClipToOutline(true);
+            tile.setContentDescription("Открыть фотографию из галереи");
+            ImageView image=new ImageView(this);
+            image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            image.setBackgroundColor(0xFF213141);
+            tile.addView(image,new FrameLayout.LayoutParams(-1,-1));
+            TextView fallback=visualText("▧",27,SECONDARY,false);
+            fallback.setGravity(Gravity.CENTER);
+            tile.addView(fallback,new FrameLayout.LayoutParams(-1,-1));
+            tile.setOnClickListener(v->openStory(index));
+            // Reuse the existing authenticated, in-memory decrypted thumbnail flow.
+            loadThumbnail(item,image,fallback,width);
+            android.widget.GridLayout.LayoutParams p=new android.widget.GridLayout.LayoutParams();
+            p.width=width;p.height=width;
+            p.setMargins(dp(4),dp(4),dp(4),dp(4));
+            grid.addView(tile,p);
+        }
+        body.addView(grid,new LinearLayout.LayoutParams(-1,-2));
+    }
+
     private String storyAge(JSONObject story){
         String ends=story.optString("expires_at","");
         if(!ends.isEmpty()&&!archiveMode)try{
