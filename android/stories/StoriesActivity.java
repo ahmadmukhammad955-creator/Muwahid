@@ -455,45 +455,121 @@ public final class StoriesActivity extends Activity {
         try{startActivityForResult(i,"cover".equals(kind)?PICK_COVER:PICK_AVATAR);}
         catch(Exception e){error(e);}
     }
+    private SeekBar photoCropControl(LinearLayout holder,String title,int progress){
+        TextView label=visualText(title,13,SECONDARY,false);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
+        lp.topMargin=dp(6);
+        holder.addView(label,lp);
+        SeekBar seek=new SeekBar(this);
+        seek.setMax(100);
+        seek.setProgress(progress);
+        holder.addView(seek,new LinearLayout.LayoutParams(-1,dp(30)));
+        return seek;
+    }
     private void previewProfilePhoto(Uri source,boolean cover){
         if(destroyed||archiveScreen||
             !(profileChatId.isEmpty()||api.uid().equals(contact.optString("id",""))))return;
         io.execute(()->{
             try{
-                final byte[] prepared=ProfilePhotoCodec.prepare(getContentResolver(),source,cover);
-                final Bitmap preview=ProfilePhotoCodec.decode(prepared);
+                byte[] prepared=ProfilePhotoCodec.prepare(getContentResolver(),source,cover);
+                final Bitmap initial;
+                try{initial=ProfilePhotoCodec.decode(prepared);}
+                finally{Arrays.fill(prepared,(byte)0);}
                 ui.post(()->{
-                    if(destroyed||isFinishing()){Arrays.fill(prepared,(byte)0);preview.recycle();return;}
+                    if(destroyed||isFinishing()){initial.recycle();return;}
                     ImageView photo=new ImageView(this);
                     photo.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                    photo.setImageBitmap(preview);
+                    photo.setImageBitmap(initial);
                     if(!cover){
                         GradientDrawable round=new GradientDrawable();
-                        round.setShape(GradientDrawable.OVAL);round.setColor(0xFF17283B);
-                        photo.setBackground(round);photo.setClipToOutline(true);
+                        round.setShape(GradientDrawable.OVAL);
+                        round.setColor(0xFF17283B);
+                        photo.setBackground(round);
+                        photo.setClipToOutline(true);
                     }
                     LinearLayout holder=vertical();
-                    holder.setGravity(Gravity.CENTER);
-                    holder.setPadding(dp(20),dp(14),dp(20),dp(14));
-                    holder.addView(photo,new LinearLayout.LayoutParams(cover?-1:dp(230),dp(cover?180:230)));
-                    String kind=cover?"cover":"avatar";
-                    new AlertDialog.Builder(this)
+                    holder.setPadding(dp(18),dp(7),dp(18),dp(7));
+                    holder.addView(photo,new LinearLayout.LayoutParams(
+                        cover?-1:dp(210),dp(cover?155:210)));
+                    TextView hint=visualText(
+                        "Настройте кадр перед сохранением фотографии",13,SECONDARY,false);
+                    LinearLayout.LayoutParams hintP=new LinearLayout.LayoutParams(-1,-2);
+                    hintP.topMargin=dp(10);holder.addView(hint,hintP);
+                    SeekBar positionX=photoCropControl(holder,"Положение слева — справа",50);
+                    SeekBar positionY=photoCropControl(holder,"Положение сверху — вниз",50);
+                    SeekBar zoom=photoCropControl(holder,"Увеличение изображения",0);
+                    final Bitmap[] shown={initial};
+                    final java.util.concurrent.atomic.AtomicInteger revision=
+                        new java.util.concurrent.atomic.AtomicInteger();
+                    final AlertDialog[] holderDialog={null};
+                    Runnable refreshPreview=()->{
+                        final int current=revision.incrementAndGet();
+                        final float fx=positionX.getProgress()/100f;
+                        final float fy=positionY.getProgress()/100f;
+                        final float scale=1f+zoom.getProgress()*0.03f;
+                        io.execute(()->{
+                            byte[] result=null;
+                            try{
+                                result=ProfilePhotoCodec.prepare(
+                                    getContentResolver(),source,cover,fx,fy,scale);
+                                final Bitmap updated=ProfilePhotoCodec.decode(result);
+                                ui.post(()->{
+                                    if(destroyed||holderDialog[0]==null||
+                                        !holderDialog[0].isShowing()||
+                                        revision.get()!=current){
+                                        updated.recycle();return;
+                                    }
+                                    Bitmap previous=shown[0];shown[0]=updated;
+                                    photo.setImageBitmap(updated);
+                                    if(previous!=null&&!previous.isRecycled())previous.recycle();
+                                });
+                            }catch(Exception e){error(e);}
+                            finally{if(result!=null)Arrays.fill(result,(byte)0);}
+                        });
+                    };
+                    SeekBar.OnSeekBarChangeListener onCropChange=
+                        new SeekBar.OnSeekBarChangeListener(){
+                            @Override public void onProgressChanged(SeekBar s,int p,boolean fromUser){}
+                            @Override public void onStartTrackingTouch(SeekBar s){}
+                            @Override public void onStopTrackingTouch(SeekBar s){refreshPreview.run();}
+                        };
+                    positionX.setOnSeekBarChangeListener(onCropChange);
+                    positionY.setOnSeekBarChangeListener(onCropChange);
+                    zoom.setOnSeekBarChangeListener(onCropChange);
+                    final String kind=cover?"cover":"avatar";
+                    AlertDialog dialog=new AlertDialog.Builder(this)
                         .setTitle(cover?"Новая обложка":"Новое фото профиля")
                         .setView(holder)
-                        .setNegativeButton("Отмена",(d,w)->Arrays.fill(prepared,(byte)0))
-                        .setPositiveButton("Сохранить",(d,w)->backgroundWork(()->{
-                            try{
-                                String path=api.uid()+"/"+kind+"/"+UUID.randomUUID().toString()+".jpg";
-                                api.uploadProfileImage(path,prepared);
-                                api.rpc("mw_profile_set_image",
-                                    new JSONObject().put("p_kind",kind).put("p_path",path));
-                                ui.post(()->{if(!destroyed){
-                                    Toast.makeText(this,cover?"Обложка обновлена":"Фото профиля обновлено",Toast.LENGTH_SHORT).show();
-                                    reload();
-                                }});
-                            }finally{Arrays.fill(prepared,(byte)0);}
-                        }))
-                        .show();
+                        .setNegativeButton("Отмена",null)
+                        .setPositiveButton("Сохранить",(d,w)->{
+                            final float fx=positionX.getProgress()/100f;
+                            final float fy=positionY.getProgress()/100f;
+                            final float scale=1f+zoom.getProgress()*0.03f;
+                            backgroundWork(()->{
+                                byte[] upload=null;
+                                try{
+                                    upload=ProfilePhotoCodec.prepare(
+                                        getContentResolver(),source,cover,fx,fy,scale);
+                                    String path=api.uid()+"/"+kind+"/"+UUID.randomUUID()+".jpg";
+                                    api.uploadProfileImage(path,upload);
+                                    api.rpc("mw_profile_set_image",
+                                        new JSONObject().put("p_kind",kind).put("p_path",path));
+                                    ui.post(()->{if(!destroyed){
+                                        Toast.makeText(this,cover?"Обложка обновлена":
+                                            "Фото профиля обновлено",Toast.LENGTH_SHORT).show();
+                                        reload();
+                                    }});
+                                }finally{if(upload!=null)Arrays.fill(upload,(byte)0);}
+                            });
+                        }).create();
+                    holderDialog[0]=dialog;
+                    dialog.setOnDismissListener(d->{
+                        revision.incrementAndGet();
+                        photo.setImageDrawable(null);
+                        if(shown[0]!=null&&!shown[0].isRecycled())shown[0].recycle();
+                        shown[0]=null;
+                    });
+                    dialog.show();
                 });
             }catch(Exception e){error(e);}
         });
