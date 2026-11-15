@@ -406,8 +406,26 @@ public final class StoriesActivity extends Activity {
             photoActions.addView(changeCoverButton,coverButtonP);
             changeCoverButton.setOnClickListener(v->chooseProfilePhoto("cover"));
         }
-        // The old empty Stories/Archive section is not shown in the profile.
-        // Only verified photos actually pinned to the profile may appear in the gallery.
+        // Show real, actionable stories, not an empty decorative placeholder.
+        // Owners can publish a new story or open their private archive;
+        // contacts see this section only when the server returned visible stories.
+        if(self||feed.length()>0){
+            LinearLayout storyHeading=horizontal();
+            LinearLayout.LayoutParams storyHeadingP=new LinearLayout.LayoutParams(-1,dp(46));
+            storyHeadingP.topMargin=dp(14);
+            body.addView(storyHeading,storyHeadingP);
+            TextView storiesLabel=visualText("Истории",20,FG,true);
+            storyHeading.addView(storiesLabel,new LinearLayout.LayoutParams(0,-2,1));
+            if(self){
+                TextView archiveLink=visualText("◷  Архив",16,SECONDARY,false);
+                archiveLink.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
+                archiveLink.setContentDescription("Открыть архив историй");
+                storyHeading.addView(archiveLink,new LinearLayout.LayoutParams(dp(96),dp(44)));
+                archiveLink.setOnClickListener(v->openArchiveScreen());
+            }
+            renderStoryStrip(body,self);
+        }
+        // Use only actual profile-pinned, encrypted photographs in the gallery.
         renderProfileGallery(body);
         String bio=contact.optString("bio","");
         LinearLayout details=vertical();details.setBackground(rounded(0xFF131E29,18));
