@@ -1,7 +1,7 @@
 {
-  "versionCode": 77,
-  "versionName": "0.13.42",
-  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.42/Muwahid-0.13.42.apk",
-  "sha256": "24897e6b5ef1229417d053400ab4cd824982278703b1959c617c4ffe2471ce1f",
-  "notes": "Истории контактов, личный архив через 24 часа, реакции, ответы в защищённом чате и профиль. Сохраняются прежние сообщения и данные приложения."
+  "versionCode": 79,
+  "versionName": "0.13.44",
+  "apkUrl": "https://github.com/ahmadmukhammad955-creator/Muwahid/releases/download/v0.13.44/Muwahid-0.13.44.apk",
+  "sha256": "dacf9d0014c0837d47d8e4c26fffea303baeb3115da1d8b7baca34a10a1f93f6",
+  "notes": "Профиль с тремя кнопками, загрузкой фотографий и обложки, архивом историй; сохранены чаты и пользовательские данные."
 }
