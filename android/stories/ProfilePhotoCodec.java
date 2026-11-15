@@ -21,6 +21,17 @@ final class ProfilePhotoCodec {
     private ProfilePhotoCodec(){}
 
     static byte[] prepare(ContentResolver resolver, Uri uri, boolean cover) throws IOException {
+        return prepare(resolver,uri,cover,0.5f,0.5f,1f);
+    }
+
+    /** Crops around a user-selected position (0..1) with 1..4x enlargement. */
+    static byte[] prepare(ContentResolver resolver, Uri uri, boolean cover,
+                          float focusX,float focusY,float zoom) throws IOException {
+        if(!Float.isFinite(focusX)||!Float.isFinite(focusY)||!Float.isFinite(zoom))
+            throw new IOException("Недопустимые параметры кадрирования");
+        focusX=Math.max(0f,Math.min(1f,focusX));
+        focusY=Math.max(0f,Math.min(1f,focusY));
+        zoom=Math.max(1f,Math.min(4f,zoom));
         byte[] source;
         try(InputStream in=resolver.openInputStream(uri)){
             if(in==null)throw new IOException("Не удалось открыть фотографию");
@@ -55,14 +66,17 @@ final class ProfilePhotoCodec {
                 canvas.drawColor(Color.rgb(20,28,38));
                 float aspect=(float)outW/outH;
                 int w=original.getWidth(),h=original.getHeight();
-                Rect src;
-                if((float)w/h>aspect){
-                    int cw=Math.max(1,Math.round(h*aspect));
-                    src=new Rect((w-cw)/2,0,(w+cw)/2,h);
-                }else{
-                    int ch=Math.max(1,Math.round(w/aspect));
-                    src=new Rect(0,(h-ch)/2,w,(h+ch)/2);
-                }
+                float cropW=(float)w/h>aspect?h*aspect:w;
+                float cropH=(float)w/h>aspect?h:w/aspect;
+                int cw=Math.max(1,Math.min(w,Math.round(cropW/zoom)));
+                int ch=Math.max(1,Math.min(h,Math.round(cropH/zoom)));
+                // Round to the output aspect ratio without exceeding source bounds.
+                if((float)cw/ch>aspect)cw=Math.max(1,Math.round(ch*aspect));
+                else ch=Math.max(1,Math.round(cw/aspect));
+                cw=Math.min(cw,w);ch=Math.min(ch,h);
+                int left=Math.max(0,Math.min(w-cw,Math.round(focusX*w-cw/2f)));
+                int top=Math.max(0,Math.min(h-ch,Math.round(focusY*h-ch/2f)));
+                Rect src=new Rect(left,top,left+cw,top+ch);
                 Paint paint=new Paint(Paint.FILTER_BITMAP_FLAG|Paint.ANTI_ALIAS_FLAG);
                 canvas.drawBitmap(original,src,new RectF(0,0,outW,outH),paint);
                 ByteArrayOutputStream out=new ByteArrayOutputStream();

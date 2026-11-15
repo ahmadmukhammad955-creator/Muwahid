@@ -289,30 +289,12 @@ public final class StoriesActivity extends Activity {
         final boolean self=profileChatId.isEmpty() || api.uid().equals(contact.optString("id",""));
         FrameLayout hero=new FrameLayout(this);
         hero.setBackground(rounded(PANEL,21));hero.setClipToOutline(true);
-        View skyline=new View(this){
-            private final Paint paint=new Paint(3);
-            @Override protected void onDraw(Canvas c){
-                int w=getWidth(),h=getHeight();
-                paint.setShader(new LinearGradient(0,0,0,h,
-                    new int[]{0xFF15283D,0xFF594657,0xFFBF7562,0xFF111E2B},null,Shader.TileMode.CLAMP));
-                c.drawRect(0,0,w,h,paint);paint.setShader(null);
-                paint.setColor(0xCDE8E2D8);
-                c.drawCircle(w*.83f,h*.24f,dp(10),paint);
-                paint.setColor(0xFF101A28);
-                c.drawRect(0,h*.84f,w,h,paint);
-                float center=w*.48f,ground=h*.87f;
-                paint.setStyle(Paint.Style.FILL);
-                c.drawRect(center-dp(63),ground-dp(26),center+dp(63),ground,paint);
-                c.drawOval(center-dp(56),ground-dp(75),center+dp(56),ground-dp(6),paint);
-                for(int side=-1;side<=1;side+=2){
-                    float x=center+side*dp(112);
-                    c.drawRect(x-dp(6),ground-dp(108),x+dp(6),ground,paint);
-                    Path cone=new Path();cone.moveTo(x-dp(7),ground-dp(108));cone.lineTo(x,ground-dp(151));
-                    cone.lineTo(x+dp(7),ground-dp(108));cone.close();c.drawPath(cone,paint);
-                }
-                paint.setColor(0x50101821);c.drawRect(0,h*.81f,w,h,paint);
-            }
-        };
+        // No hard-coded mosque or stock photograph: the cover belongs to the user.
+        // The gradient is only a fallback until the saved profile cover is loaded.
+        View skyline=new View(this);
+        skyline.setBackground(new GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            new int[]{0xFF13263D,0xFF274A5F,0xFF15283A}));
         FrameLayout.LayoutParams skyP=new FrameLayout.LayoutParams(-1,dp(171),Gravity.TOP);
         hero.addView(skyline,skyP);
         ImageView coverPhoto=new ImageView(this);
@@ -324,6 +306,18 @@ public final class StoriesActivity extends Activity {
             skyline.setOnClickListener(v->chooseProfilePhoto("cover"));
             coverPhoto.setContentDescription("Изменить обложку профиля");
             coverPhoto.setOnClickListener(v->chooseProfilePhoto("cover"));
+            // Visible camera control, backed by the existing authenticated upload flow.
+            ImageView changeCover=new ImageView(this);
+            changeCover.setImageResource(android.R.drawable.ic_menu_camera);
+            changeCover.setColorFilter(FG);
+            changeCover.setPadding(dp(10),dp(10),dp(10),dp(10));
+            changeCover.setBackground(rounded(0xCC142234,12));
+            changeCover.setContentDescription("Изменить обложку профиля");
+            FrameLayout.LayoutParams cameraP=new FrameLayout.LayoutParams(
+                dp(43),dp(43),Gravity.TOP|Gravity.RIGHT);
+            cameraP.setMargins(0,dp(11),dp(11),0);
+            hero.addView(changeCover,cameraP);
+            changeCover.setOnClickListener(v->chooseProfilePhoto("cover"));
         }
         String coverPath=contact.optString("cover_path","");
         if(!coverPath.isEmpty())loadProfilePhoto(coverPath,coverPhoto);
@@ -355,6 +349,18 @@ public final class StoriesActivity extends Activity {
         if(self){
             outline.setContentDescription("Изменить фотографию профиля");
             outline.setOnClickListener(v->chooseProfilePhoto("avatar"));
+            ImageView changeAvatar=new ImageView(this);
+            changeAvatar.setImageResource(android.R.drawable.ic_menu_edit);
+            changeAvatar.setColorFilter(FG);
+            changeAvatar.setPadding(dp(9),dp(9),dp(9),dp(9));
+            changeAvatar.setBackground(rounded(0xFF176A92,21));
+            changeAvatar.setContentDescription("Изменить аватар");
+            FrameLayout.LayoutParams avatarEditP=new FrameLayout.LayoutParams(
+                dp(38),dp(38),Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);
+            avatarEditP.bottomMargin=dp(3);
+            hero.addView(changeAvatar,avatarEditP);
+            changeAvatar.setTranslationX(dp(53));
+            changeAvatar.setOnClickListener(v->chooseProfilePhoto("avatar"));
         }
         String avatarPath=contact.optString("avatar_path","");
         if(!avatarPath.isEmpty())loadProfilePhoto(avatarPath,avatarPhoto);
@@ -378,23 +384,49 @@ public final class StoriesActivity extends Activity {
             LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2);
             sp.topMargin=dp(8);body.addView(online,sp);
         }
-        LinearLayout actions=horizontal();
-        LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(66));
-        ap.topMargin=dp(16);body.addView(actions,ap);
-        addQuickAction(actions,"chat","Чат",()->finish(),true);
-        addQuickAction(actions,"call","Звонок",()->startContactCall("audio"),!self);
-        addQuickAction(actions,"video","Видео",()->startContactCall("video"),!self);
+        // Replace the previous decorative chat/call/video tiles with real photo editing.
+        // Contact profiles must never offer photo edits to another person's account.
+        if(self){
+            LinearLayout photoActions=horizontal();
+            LinearLayout.LayoutParams photoActionsP=new LinearLayout.LayoutParams(-1,dp(58));
+            photoActionsP.topMargin=dp(16);
+            body.addView(photoActions,photoActionsP);
 
-        LinearLayout heading=horizontal();
-        LinearLayout.LayoutParams headingP=new LinearLayout.LayoutParams(-1,dp(47));
-        headingP.topMargin=dp(12);body.addView(heading,headingP);
-        TextView storiesLabel=visualText("Истории",20,FG,true);
-        heading.addView(storiesLabel,new LinearLayout.LayoutParams(0,-2,1));
-        TextView archiveLink=visualText("◷  Архив",16,0xFFCFD9E6,false);
-        archiveLink.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
-        heading.addView(archiveLink,new LinearLayout.LayoutParams(dp(96),dp(44)));
-        archiveLink.setOnClickListener(v->openArchiveScreen());
-        renderStoryStrip(body,self);
+            TextView changeAvatarButton=button("Изменить аватар");
+            changeAvatarButton.setTextSize(14);
+            LinearLayout.LayoutParams avatarButtonP=new LinearLayout.LayoutParams(0,dp(54),1);
+            avatarButtonP.rightMargin=dp(5);
+            photoActions.addView(changeAvatarButton,avatarButtonP);
+            changeAvatarButton.setOnClickListener(v->chooseProfilePhoto("avatar"));
+
+            TextView changeCoverButton=button("Изменить обложку");
+            changeCoverButton.setTextSize(14);
+            LinearLayout.LayoutParams coverButtonP=new LinearLayout.LayoutParams(0,dp(54),1);
+            coverButtonP.leftMargin=dp(5);
+            photoActions.addView(changeCoverButton,coverButtonP);
+            changeCoverButton.setOnClickListener(v->chooseProfilePhoto("cover"));
+        }
+        // Show real, actionable stories, not an empty decorative placeholder.
+        // Owners can publish a new story or open their private archive;
+        // contacts see this section only when the server returned visible stories.
+        if(self||feed.length()>0){
+            LinearLayout storyHeading=horizontal();
+            LinearLayout.LayoutParams storyHeadingP=new LinearLayout.LayoutParams(-1,dp(46));
+            storyHeadingP.topMargin=dp(14);
+            body.addView(storyHeading,storyHeadingP);
+            TextView storiesLabel=visualText("Истории",20,FG,true);
+            storyHeading.addView(storiesLabel,new LinearLayout.LayoutParams(0,-2,1));
+            if(self){
+                TextView archiveLink=visualText("◷  Архив",16,SECONDARY,false);
+                archiveLink.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
+                archiveLink.setContentDescription("Открыть архив историй");
+                storyHeading.addView(archiveLink,new LinearLayout.LayoutParams(dp(96),dp(44)));
+                archiveLink.setOnClickListener(v->openArchiveScreen());
+            }
+            renderStoryStrip(body,self);
+        }
+        // Use only actual profile-pinned, encrypted photographs in the gallery.
+        renderProfileGallery(body);
         String bio=contact.optString("bio","");
         LinearLayout details=vertical();details.setBackground(rounded(0xFF131E29,18));
         LinearLayout.LayoutParams detailsP=new LinearLayout.LayoutParams(-1,-2);
@@ -410,12 +442,11 @@ public final class StoriesActivity extends Activity {
             addInfoRow(details,"✎","Изменить профиль","",this::editOwnProfile);
             addInfoRow(details,"◇","Конфиденциальность","",this::openAccountSettings);
             addInfoRow(details,"⚙","Настройки профиля","",this::openAccountSettings);
-        }else{
-            addInfoRow(details,"♢","Блокировка контакта","",this::confirmBlock);
         }
     }
     private void chooseProfilePhoto(String kind){
-        if(destroyed||archiveScreen||!profileChatId.isEmpty())return;
+        if(destroyed||archiveScreen||
+            !(profileChatId.isEmpty()||api.uid().equals(contact.optString("id",""))))return;
         if(!"avatar".equals(kind)&&!"cover".equals(kind))return;
         Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
@@ -424,44 +455,121 @@ public final class StoriesActivity extends Activity {
         try{startActivityForResult(i,"cover".equals(kind)?PICK_COVER:PICK_AVATAR);}
         catch(Exception e){error(e);}
     }
+    private SeekBar photoCropControl(LinearLayout holder,String title,int progress){
+        TextView label=visualText(title,13,SECONDARY,false);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
+        lp.topMargin=dp(6);
+        holder.addView(label,lp);
+        SeekBar seek=new SeekBar(this);
+        seek.setMax(100);
+        seek.setProgress(progress);
+        holder.addView(seek,new LinearLayout.LayoutParams(-1,dp(30)));
+        return seek;
+    }
     private void previewProfilePhoto(Uri source,boolean cover){
-        if(destroyed||archiveScreen||!profileChatId.isEmpty())return;
+        if(destroyed||archiveScreen||
+            !(profileChatId.isEmpty()||api.uid().equals(contact.optString("id",""))))return;
         io.execute(()->{
             try{
-                final byte[] prepared=ProfilePhotoCodec.prepare(getContentResolver(),source,cover);
-                final Bitmap preview=ProfilePhotoCodec.decode(prepared);
+                byte[] prepared=ProfilePhotoCodec.prepare(getContentResolver(),source,cover);
+                final Bitmap initial;
+                try{initial=ProfilePhotoCodec.decode(prepared);}
+                finally{Arrays.fill(prepared,(byte)0);}
                 ui.post(()->{
-                    if(destroyed||isFinishing()){Arrays.fill(prepared,(byte)0);preview.recycle();return;}
+                    if(destroyed||isFinishing()){initial.recycle();return;}
                     ImageView photo=new ImageView(this);
                     photo.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                    photo.setImageBitmap(preview);
+                    photo.setImageBitmap(initial);
                     if(!cover){
                         GradientDrawable round=new GradientDrawable();
-                        round.setShape(GradientDrawable.OVAL);round.setColor(0xFF17283B);
-                        photo.setBackground(round);photo.setClipToOutline(true);
+                        round.setShape(GradientDrawable.OVAL);
+                        round.setColor(0xFF17283B);
+                        photo.setBackground(round);
+                        photo.setClipToOutline(true);
                     }
                     LinearLayout holder=vertical();
-                    holder.setGravity(Gravity.CENTER);
-                    holder.setPadding(dp(20),dp(14),dp(20),dp(14));
-                    holder.addView(photo,new LinearLayout.LayoutParams(cover?-1:dp(230),dp(cover?180:230)));
-                    String kind=cover?"cover":"avatar";
-                    new AlertDialog.Builder(this)
+                    holder.setPadding(dp(18),dp(7),dp(18),dp(7));
+                    holder.addView(photo,new LinearLayout.LayoutParams(
+                        cover?-1:dp(210),dp(cover?155:210)));
+                    TextView hint=visualText(
+                        "Настройте кадр перед сохранением фотографии",13,SECONDARY,false);
+                    LinearLayout.LayoutParams hintP=new LinearLayout.LayoutParams(-1,-2);
+                    hintP.topMargin=dp(10);holder.addView(hint,hintP);
+                    SeekBar positionX=photoCropControl(holder,"Положение слева — справа",50);
+                    SeekBar positionY=photoCropControl(holder,"Положение сверху — вниз",50);
+                    SeekBar zoom=photoCropControl(holder,"Увеличение изображения",0);
+                    final Bitmap[] shown={initial};
+                    final java.util.concurrent.atomic.AtomicInteger revision=
+                        new java.util.concurrent.atomic.AtomicInteger();
+                    final AlertDialog[] holderDialog={null};
+                    Runnable refreshPreview=()->{
+                        final int current=revision.incrementAndGet();
+                        final float fx=positionX.getProgress()/100f;
+                        final float fy=positionY.getProgress()/100f;
+                        final float scale=1f+zoom.getProgress()*0.03f;
+                        io.execute(()->{
+                            byte[] result=null;
+                            try{
+                                result=ProfilePhotoCodec.prepare(
+                                    getContentResolver(),source,cover,fx,fy,scale);
+                                final Bitmap updated=ProfilePhotoCodec.decode(result);
+                                ui.post(()->{
+                                    if(destroyed||holderDialog[0]==null||
+                                        !holderDialog[0].isShowing()||
+                                        revision.get()!=current){
+                                        updated.recycle();return;
+                                    }
+                                    Bitmap previous=shown[0];shown[0]=updated;
+                                    photo.setImageBitmap(updated);
+                                    if(previous!=null&&!previous.isRecycled())previous.recycle();
+                                });
+                            }catch(Exception e){error(e);}
+                            finally{if(result!=null)Arrays.fill(result,(byte)0);}
+                        });
+                    };
+                    SeekBar.OnSeekBarChangeListener onCropChange=
+                        new SeekBar.OnSeekBarChangeListener(){
+                            @Override public void onProgressChanged(SeekBar s,int p,boolean fromUser){}
+                            @Override public void onStartTrackingTouch(SeekBar s){}
+                            @Override public void onStopTrackingTouch(SeekBar s){refreshPreview.run();}
+                        };
+                    positionX.setOnSeekBarChangeListener(onCropChange);
+                    positionY.setOnSeekBarChangeListener(onCropChange);
+                    zoom.setOnSeekBarChangeListener(onCropChange);
+                    final String kind=cover?"cover":"avatar";
+                    AlertDialog dialog=new AlertDialog.Builder(this)
                         .setTitle(cover?"Новая обложка":"Новое фото профиля")
                         .setView(holder)
-                        .setNegativeButton("Отмена",(d,w)->Arrays.fill(prepared,(byte)0))
-                        .setPositiveButton("Сохранить",(d,w)->backgroundWork(()->{
-                            try{
-                                String path=api.uid()+"/"+kind+"/"+UUID.randomUUID().toString()+".jpg";
-                                api.uploadProfileImage(path,prepared);
-                                api.rpc("mw_profile_set_image",
-                                    new JSONObject().put("p_kind",kind).put("p_path",path));
-                                ui.post(()->{if(!destroyed){
-                                    Toast.makeText(this,cover?"Обложка обновлена":"Фото профиля обновлено",Toast.LENGTH_SHORT).show();
-                                    reload();
-                                }});
-                            }finally{Arrays.fill(prepared,(byte)0);}
-                        }))
-                        .show();
+                        .setNegativeButton("Отмена",null)
+                        .setPositiveButton("Сохранить",(d,w)->{
+                            final float fx=positionX.getProgress()/100f;
+                            final float fy=positionY.getProgress()/100f;
+                            final float scale=1f+zoom.getProgress()*0.03f;
+                            backgroundWork(()->{
+                                byte[] upload=null;
+                                try{
+                                    upload=ProfilePhotoCodec.prepare(
+                                        getContentResolver(),source,cover,fx,fy,scale);
+                                    String path=api.uid()+"/"+kind+"/"+UUID.randomUUID()+".jpg";
+                                    api.uploadProfileImage(path,upload);
+                                    api.rpc("mw_profile_set_image",
+                                        new JSONObject().put("p_kind",kind).put("p_path",path));
+                                    ui.post(()->{if(!destroyed){
+                                        Toast.makeText(this,cover?"Обложка обновлена":
+                                            "Фото профиля обновлено",Toast.LENGTH_SHORT).show();
+                                        reload();
+                                    }});
+                                }finally{if(upload!=null)Arrays.fill(upload,(byte)0);}
+                            });
+                        }).create();
+                    holderDialog[0]=dialog;
+                    dialog.setOnDismissListener(d->{
+                        revision.incrementAndGet();
+                        photo.setImageDrawable(null);
+                        if(shown[0]!=null&&!shown[0].isRecycled())shown[0].recycle();
+                        shown[0]=null;
+                    });
+                    dialog.show();
                 });
             }catch(Exception e){error(e);}
         });
@@ -646,6 +754,54 @@ public final class StoriesActivity extends Activity {
             tileP.rightMargin=dp(8);row.addView(card,tileP);
         }
     }
+    /**
+     * An image gallery backed by the actual encrypted story feed. Only photos
+     * explicitly pinned to the profile appear here; never use stock URLs,
+     * fake publications, or another user's private, unapproved media.
+     */
+    private void renderProfileGallery(LinearLayout body){
+        ArrayList<Integer> photos=new ArrayList<>();
+        for(int i=0;i<feed.length()&&photos.size()<6;i++){
+            JSONObject item=feed.optJSONObject(i);
+            if(item==null||!"image".equals(item.optString("media_kind",""))
+                ||!item.optBoolean("visible_on_profile",false))continue;
+            photos.add(i);
+        }
+        if(photos.isEmpty())return;
+        TextView heading=visualText("Галерея",18,FG,true);
+        LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);
+        hp.topMargin=dp(21);hp.bottomMargin=dp(10);
+        body.addView(heading,hp);
+
+        android.widget.GridLayout grid=new android.widget.GridLayout(this);
+        grid.setColumnCount(3);
+        int width=Math.max(dp(70),
+            (getResources().getDisplayMetrics().widthPixels-dp(28)-dp(24))/3);
+        for(int index:photos){
+            JSONObject item=feed.optJSONObject(index);
+            if(item==null)continue;
+            FrameLayout tile=new FrameLayout(this);
+            tile.setBackground(rounded(PANEL,13));
+            tile.setClipToOutline(true);
+            tile.setContentDescription("Открыть фотографию из галереи");
+            ImageView image=new ImageView(this);
+            image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            image.setBackgroundColor(0xFF213141);
+            tile.addView(image,new FrameLayout.LayoutParams(-1,-1));
+            TextView fallback=visualText("▧",27,SECONDARY,false);
+            fallback.setGravity(Gravity.CENTER);
+            tile.addView(fallback,new FrameLayout.LayoutParams(-1,-1));
+            tile.setOnClickListener(v->openStory(index));
+            // Reuse the existing authenticated, in-memory decrypted thumbnail flow.
+            loadThumbnail(item,image,fallback,width);
+            android.widget.GridLayout.LayoutParams p=new android.widget.GridLayout.LayoutParams();
+            p.width=width;p.height=width;
+            p.setMargins(dp(4),dp(4),dp(4),dp(4));
+            grid.addView(tile,p);
+        }
+        body.addView(grid,new LinearLayout.LayoutParams(-1,-2));
+    }
+
     private String storyAge(JSONObject story){
         String ends=story.optString("expires_at","");
         if(!ends.isEmpty()&&!archiveMode)try{
