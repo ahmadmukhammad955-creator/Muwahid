@@ -388,9 +388,9 @@ public final class StoriesActivity extends Activity {
         // Contact profiles must never offer photo edits to another person's account.
         if(self){
             LinearLayout photoActions=horizontal();
-            LinearLayout.LayoutParams photoP=new LinearLayout.LayoutParams(-1,dp(58));
-            photoP.topMargin=dp(16);
-            body.addView(photoActions,photoP);
+            LinearLayout.LayoutParams photoActionsP=new LinearLayout.LayoutParams(-1,dp(58));
+            photoActionsP.topMargin=dp(16);
+            body.addView(photoActions,photoActionsP);
 
             TextView changeAvatarButton=button("Изменить аватар");
             changeAvatarButton.setTextSize(14);
