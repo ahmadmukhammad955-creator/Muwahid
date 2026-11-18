@@ -188,3 +188,17 @@ assert 'uploadProfileImage(String path' in API.read_text(encoding="utf-8")
 assert 'uploadStory(String objectPath' in API.read_text(encoding="utf-8")
 assert 'android:exported="false"' in MANIFEST.read_text(encoding="utf-8")
 print("MW_NATIVE_STORIES_INTEGRATED: encrypted media, contact profile, story navigation, real call routes and security tests")
+
+# Instrumentation supplies an in-memory transport in its own APK only.
+one(API,"final class Api {","class Api {")
+(TEST.parent/"ProfileArchiveChecks.java").write_bytes((SOURCE/"ProfileArchiveChecks.java").read_bytes())
+one(TEST,"    private Activity activity;", """    private boolean checkingProfile;
+    @Override public Activity newActivity(ClassLoader loader,String name,Intent intent)
+            throws InstantiationException,IllegalAccessException,ClassNotFoundException{
+        if(checkingProfile && StoriesActivity.class.getName().equals(name))return ProfileArchiveChecks.fixture();
+        return super.newActivity(loader,name,intent);
+    }
+    private Activity activity;""")
+one(TEST,"            checkStoryMediaEncryption();","""            checkStoryMediaEncryption();
+            checkingProfile=true;
+            try{ProfileArchiveChecks.run(this);}finally{checkingProfile=false;}""")

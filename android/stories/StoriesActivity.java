@@ -16,7 +16,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /** Real contact profile and 24-hour E2EE stories. No WebView or external media player. */
-public final class StoriesActivity extends Activity {
+public class StoriesActivity extends Activity {
     private static final int PICK_STORY=6991;
     private static final int PICK_AVATAR=6992,PICK_COVER=6993;
     private static final int MAX_BYTES=StoryMediaCodec.MAX_CIPHER_BYTES-StoryMediaCodec.HEADER_BYTES;
@@ -65,9 +65,11 @@ public final class StoriesActivity extends Activity {
     private boolean destroyed=false;
     private boolean checkingStoryAudience=false;
 
+    Api profileApi(){return new Api(new SecureStore(this));}
+
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
-        api=new Api(new SecureStore(this));crypto=new CryptoBox(this);
+        api=profileApi();crypto=new CryptoBox(this);
         if(!api.signedIn()){Toast.makeText(this,"Войдите в аккаунт Muwahid",Toast.LENGTH_LONG).show();finish();return;}
         Intent in=getIntent();
         profileChatId=in.getStringExtra("chat_id");
@@ -1280,7 +1282,7 @@ public final class StoriesActivity extends Activity {
         Bitmap bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.length);
         if(bitmap==null){viewerStatus.setText("Не удалось открыть фото");mediaLayer.addView(viewerStatus);return;}
         ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        image.setImageBitmap(bitmap);mediaLayer.addView(image,new FrameLayout.LayoutParams(-1,-1));
+        image.setContentDescription("Фотография истории");image.setImageBitmap(bitmap);mediaLayer.addView(image,new FrameLayout.LayoutParams(-1,-1));
         installTouchNav(image);
         paused=false;imageRemaining=7500;imageEndsAt=SystemClock.uptimeMillis()+imageRemaining;
         imageAdvance=()->{if(viewing&&!paused)next();};ui.postDelayed(imageAdvance,imageRemaining);
