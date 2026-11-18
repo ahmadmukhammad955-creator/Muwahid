@@ -87,6 +87,7 @@ public final class ProfileArchiveChecks {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         try{
             find(runner,profile,"Проверка профиля",false);
+            find(runner,profile,"Подробнее о профиле",true);
             for(String action:new String[]{"Чат","Звонок","Видео","Поделиться","QR-код профиля"})
                 find(runner,profile,action,false);
             find(runner,profile,"Открыть архив историй",true);
