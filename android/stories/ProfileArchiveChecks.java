@@ -38,9 +38,7 @@ public final class ProfileArchiveChecks {
                             byte[] key=StoryMediaCodec.newKey();
                             encrypted=StoryMediaCodec.encrypt(stream.toByteArray(),key);
                             CryptoBox box=new CryptoBox(getApplicationContext());
-                            String pub=box.publicKey(USER);
-                            box.verifyPeer(USER,"story:self",pub);
-                            String envelope=box.encryptText(USER,"story:self",pub,
+                            String envelope=box.encryptOwnStoryKey(USER,
                                 android.util.Base64.encodeToString(key,android.util.Base64.NO_WRAP));
                             item=new JSONObject().put("id","expired-story").put("owner_id",USER)
                                 .put("display_name","Проверка профиля").put("media_kind","image")

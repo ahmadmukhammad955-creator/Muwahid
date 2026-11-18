@@ -202,3 +202,16 @@ one(TEST,"    private Activity activity;", """    private boolean checkingProfil
 one(TEST,"            checkStoryMediaEncryption();","""            checkStoryMediaEncryption();
             checkingProfile=true;
             try{ProfileArchiveChecks.run(this);}finally{checkingProfile=false;}""")
+
+# Author envelopes use this account's own local identity; peer verification stays
+# mandatory for every recipient envelope and every direct message.
+marker="    private String sealText("
+one(APP/"CryptoBox.java",marker,"""    synchronized String encryptOwnStoryKey(String uid,String encoded) throws Exception {
+        return sealText(uid,"story:self",publicKey(uid),"",encoded);
+    }
+    synchronized String decryptOwnStoryKey(String uid,String envelope) throws Exception {
+        if(envelope==null||!envelope.startsWith(FORMAT))throw new SecurityException("Повреждён ключ истории");
+        return openText(uid,"story:self",publicKey(uid),"",envelope);
+    }
+
+"""+marker)

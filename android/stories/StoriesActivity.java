@@ -1153,9 +1153,7 @@ public class StoriesActivity extends Activity {
         String uid=api.uid();
         byte[] mediaKey=StoryMediaCodec.newKey();
         String encoded=android.util.Base64.encodeToString(mediaKey,android.util.Base64.NO_WRAP);
-        String ownPublic=crypto.publicKey(uid);
-        crypto.verifyPeer(uid,"story:self",ownPublic);
-        String myEnvelope=crypto.encryptText(uid,"story:self",ownPublic,encoded);
+        String myEnvelope=crypto.encryptOwnStoryKey(uid,encoded);
         JSONArray grants=new JSONArray();
         Set<String> added=new HashSet<>();
         for(int i=0;i<chats.length()&&grants.length()<200;i++){
@@ -1257,17 +1255,16 @@ public class StoriesActivity extends Activity {
     private byte[] readDecryptedMedia(JSONObject item) throws Exception{
         byte[] ciphertext=api.downloadStory(item.getString("media_path"));
         String owner=item.getString("owner_id"),uid=api.uid(),chat=item.optString("chat_id","");
-        String otherKey,scope;
-        if(owner.equals(uid)){otherKey=crypto.publicKey(uid);scope="story:self";crypto.verifyPeer(uid,scope,otherKey);}
+        String encoded;
+        if(owner.equals(uid)){encoded=crypto.decryptOwnStoryKey(uid,item.getString("key_envelope"));}
         else{
             if(chat.isEmpty())throw new SecurityException("Отсутствует чат с автором истории");
             Object pub=api.rpc("mw_e2ee_peer_key",new JSONObject().put("p_chat",chat));
-            otherKey=pub instanceof String?(String)pub:"";
+            String otherKey=pub instanceof String?(String)pub:"";
             if(otherKey.isEmpty()||!crypto.isPeerVerified(uid,chat,otherKey))
                 throw new SecurityException("Проверьте ключ собеседника, чтобы открыть историю");
-            scope=chat;
+            encoded=crypto.decryptText(uid,chat,otherKey,item.getString("key_envelope"));
         }
-        String encoded=crypto.decryptText(uid,scope,otherKey,item.getString("key_envelope"));
         byte[] key=android.util.Base64.decode(encoded,android.util.Base64.NO_WRAP);
         try{return StoryMediaCodec.decrypt(ciphertext,key);}
         finally{Arrays.fill(key,(byte)0);Arrays.fill(ciphertext,(byte)0);}
