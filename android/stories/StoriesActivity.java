@@ -116,7 +116,7 @@ public class StoriesActivity extends Activity {
     private void reload(){
         if(archiveMode){loadArchive(false);return;}
         final boolean renderArchive=archiveScreen;
-        final boolean compact=!archiveScreen && !profileChatId.isEmpty() && !contactDetails;
+        final boolean compact=!archiveScreen && !contactDetails;
         final int request=++feedRequestSerial;
         backgroundWork(()->{
             JSONObject profile=new JSONObject();
@@ -230,14 +230,16 @@ public class StoriesActivity extends Activity {
     private void openProfileMenu(View anchor){
         PopupMenu popup=new PopupMenu(this,anchor);
         popup.getMenu().add(0,1,0,"Обновить");
-        if(!archiveScreen && (profileChatId.isEmpty() || contactDetails))popup.getMenu().add(0,6,0,"Мой архив историй");
-        if(!archiveScreen&&profileChatId.isEmpty()){
+        if(!archiveScreen && contactDetails)popup.getMenu().add(0,6,0,"Мой архив историй");
+        if(!archiveScreen && contactDetails && profileChatId.isEmpty()){
             popup.getMenu().add(0,4,1,"Изменить фото профиля");
             popup.getMenu().add(0,5,2,"Изменить обложку");
         }
-        if(!archiveScreen && !profileChatId.isEmpty()){
+        if(!archiveScreen){
             popup.getMenu().add(0,2,1,"Поделиться").setEnabled(contact.length()>0);
-            if(!api.uid().equals(contact.optString("id",""))){
+            if(profileChatId.isEmpty()){
+                popup.getMenu().add(0,3,2,"Заблокировать").setEnabled(!blockPending);
+            }else if(!api.uid().equals(contact.optString("id",""))){
                 popup.getMenu().add(0,3,2,contact.optBoolean("blocked_by_me",false)?"Разблокировать":"Заблокировать").setEnabled(contact.has("blocked_by_me") && !blockPending);
             }
         }
@@ -251,7 +253,11 @@ public class StoriesActivity extends Activity {
             if(item.getItemId()==4){chooseProfilePhoto("avatar");return true;}
             if(item.getItemId()==5){chooseProfilePhoto("cover");return true;}
             if(item.getItemId()==2){shareContact();return true;}
-            if(item.getItemId()==3){confirmBlock();return true;}
+            if(item.getItemId()==3){
+                if(profileChatId.isEmpty())chooseProfileChat("block");
+                else confirmBlock();
+                return true;
+            }
             return false;
         });
         popup.show();
@@ -272,7 +278,7 @@ public class StoriesActivity extends Activity {
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams titleP=new LinearLayout.LayoutParams(0,dp(46),1);
         titleP.leftMargin=dp(8);bar.addView(title,titleP);
-        if(!archiveScreen&&profileChatId.isEmpty()){
+        if(!archiveScreen && contactDetails && profileChatId.isEmpty()){
             TextView qr=simpleIcon("▦","QR-код профиля");
             bar.addView(qr,new LinearLayout.LayoutParams(dp(44),dp(46)));
             qr.setOnClickListener(v->showProfileQr());
@@ -297,7 +303,7 @@ public class StoriesActivity extends Activity {
     }
     private void renderContact(LinearLayout body){
         if(contact.length()==0){
-            if(profileChatId.isEmpty()){
+            if(contactDetails && profileChatId.isEmpty()){
                 TextView archive=button("Архив историй");
                 body.addView(archive);archive.setOnClickListener(v->openArchiveScreen());
             }
@@ -323,7 +329,7 @@ public class StoriesActivity extends Activity {
         coverPhoto.setScaleType(ImageView.ScaleType.CENTER_CROP);
         coverPhoto.setVisibility(View.GONE);
         hero.addView(coverPhoto,new FrameLayout.LayoutParams(-1,dp(171),Gravity.TOP));
-        if(self){
+        if(self && contactDetails){
             skyline.setContentDescription("Изменить обложку профиля");
             skyline.setOnClickListener(v->chooseProfilePhoto("cover"));
             coverPhoto.setContentDescription("Изменить обложку профиля");
@@ -368,7 +374,7 @@ public class StoriesActivity extends Activity {
         outline.setBackground(avatarOutline);
         FrameLayout.LayoutParams edgeP=new FrameLayout.LayoutParams(dp(102),dp(102),Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);
         edgeP.bottomMargin=dp(7);hero.addView(outline,edgeP);
-        if(self){
+        if(self && contactDetails){
             outline.setContentDescription("Изменить фотографию профиля");
             outline.setOnClickListener(v->chooseProfilePhoto("avatar"));
             ImageView changeAvatar=new ImageView(this);
@@ -386,7 +392,7 @@ public class StoriesActivity extends Activity {
         }
         String avatarPath=contact.optString("avatar_path","");
         if(!avatarPath.isEmpty())loadProfilePhoto(avatarPath,avatarPhoto);
-        body.addView(hero,new LinearLayout.LayoutParams(-1,dp(self || contactDetails ? 193 : 233)));
+        body.addView(hero,new LinearLayout.LayoutParams(-1,dp(contactDetails ? 193 : 233)));
 
         TextView display=visualText(name,25,FG,true);
         display.setGravity(Gravity.CENTER);display.setSingleLine(true);
@@ -400,8 +406,8 @@ public class StoriesActivity extends Activity {
             LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);
             hp.topMargin=dp(3);body.addView(handle,hp);
         }
-        if(!self && !contactDetails){
-            hero.setContentDescription("Подробнее о контакте");
+        if(!contactDetails){
+            hero.setContentDescription("Подробнее о профиле");
             hero.setOnClickListener(v->{contactDetails=true;renderFeed();reload();});
             return;
         }
@@ -502,6 +508,15 @@ public class StoriesActivity extends Activity {
                 else dialog.setItems(names,(d,i)->{
                     JSONObject selected=chats.optJSONObject(i);
                     String id=selected.optString("id");
+                    if("block".equals(action)){
+                        backgroundWork(()->{
+                            JSONObject peer=(JSONObject)api.rpc("mw_contact_profile",new JSONObject().put("p_chat",id));
+                            ui.post(()->{
+                                if(!destroyed && !isFinishing())confirmBlock(id,peer);
+                            });
+                        });
+                        return;
+                    }
                     if("files".equals(action)){openAttachments(id);return;}
                     if("chat".equals(action)){
                         Intent chat=new Intent(this,MainActivity.class)
@@ -1052,19 +1067,25 @@ public class StoriesActivity extends Activity {
         startActivity(Intent.createChooser(send,"Поделиться контактом"));
     }
     private void confirmBlock(){
-        if(blockPending || !contact.has("blocked_by_me"))return;
-        boolean was=contact.optBoolean("blocked_by_me",false);
+        confirmBlock(profileChatId,contact);
+    }
+    private void confirmBlock(String chatId, JSONObject peer){
+        if(blockPending || chatId.isEmpty() || !peer.has("blocked_by_me") || api.uid().equals(peer.optString("id")))return;
+        boolean was=peer.optBoolean("blocked_by_me",false);
         new AlertDialog.Builder(this).setTitle(was?"Разблокировать контакт?":"Заблокировать контакт?")
-          .setMessage(was?"Разрешить снова общаться с контактом?":"Контакт не сможет просматривать новые истории и обращаться к вам.")
+          .setMessage(peer.optString("display_name","Контакт Muwahid"))
           .setNegativeButton("Отмена",null).setPositiveButton(was?"Разблокировать":"Заблокировать",(d,w)->{
               if(blockPending)return;
               blockPending=true;
               backgroundWork(()->{
                   try{
-                      api.rpc("mw_contact_set_block",new JSONObject().put("p_chat",profileChatId).put("p_block",!was));
+                      api.rpc("mw_contact_set_block",new JSONObject().put("p_chat",chatId).put("p_block",!was));
                       ui.post(()->{
                           if(destroyed)return;
-                          try{contact.put("blocked_by_me",!was);}catch(JSONException ignored){}
+                          if(chatId.equals(profileChatId)){
+                              try{contact.put("blocked_by_me",!was);}catch(JSONException ignored){}
+                          }
+                          Toast.makeText(this,was?"Контакт разблокирован":"Контакт заблокирован",Toast.LENGTH_SHORT).show();
                           renderFeed();
                           reload();
                       });
