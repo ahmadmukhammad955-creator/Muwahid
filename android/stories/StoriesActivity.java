@@ -29,6 +29,8 @@ public class StoriesActivity extends Activity {
     private static final int ARCHIVE_PAGE_SIZE=50;
     private boolean archiveMode=false,archiveHasMore=false,archiveLoading=false;
     private boolean archiveScreen=false;
+    private boolean contactDetails=false;
+    private boolean blockPending=false;
     private int feedRequestSerial=0;
     private int archiveOffset=0,archiveSavedScroll=-1,archiveRequestSerial=0;
     private final android.util.LruCache<String,Bitmap> thumbnailCache=
@@ -114,6 +116,7 @@ public class StoriesActivity extends Activity {
     private void reload(){
         if(archiveMode){loadArchive(false);return;}
         final boolean renderArchive=archiveScreen;
+        final boolean compact=!archiveScreen && !profileChatId.isEmpty() && !contactDetails;
         final int request=++feedRequestSerial;
         backgroundWork(()->{
             JSONObject profile=new JSONObject();
@@ -129,7 +132,7 @@ public class StoriesActivity extends Activity {
             }
             JSONObject args=new JSONObject();
             args.put("p_person",targetPerson.isEmpty()?JSONObject.NULL:targetPerson);
-            JSONArray entries=(JSONArray)api.rpc("mw_story_feed",args);
+            JSONArray entries=compact ? new JSONArray() : (JSONArray)api.rpc("mw_story_feed",args);
             final JSONObject target=profile;
             final String selectedPerson=targetPerson;
             ui.post(()->{
@@ -215,6 +218,8 @@ public class StoriesActivity extends Activity {
             if(getIntent().getBooleanExtra("archive",false)){finish();return;}
             archiveScreen=false;archiveMode=false;feedRequestSerial++;archiveRequestSerial++;
             feed=new JSONArray();renderFeed();reload();
+        }else if(contactDetails){
+            contactDetails=false;renderFeed();reload();
         }else finish();
     }
     private TextView simpleIcon(String value,String hint){
@@ -225,15 +230,15 @@ public class StoriesActivity extends Activity {
     private void openProfileMenu(View anchor){
         PopupMenu popup=new PopupMenu(this,anchor);
         popup.getMenu().add(0,1,0,"Обновить");
-        if(!archiveScreen)popup.getMenu().add(0,6,0,"Мой архив историй");
+        if(!archiveScreen && (profileChatId.isEmpty() || contactDetails))popup.getMenu().add(0,6,0,"Мой архив историй");
         if(!archiveScreen&&profileChatId.isEmpty()){
             popup.getMenu().add(0,4,1,"Изменить фото профиля");
             popup.getMenu().add(0,5,2,"Изменить обложку");
         }
-        if(!profileChatId.isEmpty()){
-            popup.getMenu().add(0,2,1,"Поделиться");
+        if(!archiveScreen && !profileChatId.isEmpty()){
+            popup.getMenu().add(0,2,1,"Поделиться").setEnabled(contact.length()>0);
             if(!api.uid().equals(contact.optString("id",""))){
-                popup.getMenu().add(0,3,2,contact.optBoolean("blocked_by_me",false)?"Разблокировать":"Заблокировать");
+                popup.getMenu().add(0,3,2,contact.optBoolean("blocked_by_me",false)?"Разблокировать":"Заблокировать").setEnabled(contact.has("blocked_by_me") && !blockPending);
             }
         }
         popup.setOnMenuItemClickListener(item->{
@@ -381,7 +386,7 @@ public class StoriesActivity extends Activity {
         }
         String avatarPath=contact.optString("avatar_path","");
         if(!avatarPath.isEmpty())loadProfilePhoto(avatarPath,avatarPhoto);
-        body.addView(hero,new LinearLayout.LayoutParams(-1,dp(193)));
+        body.addView(hero,new LinearLayout.LayoutParams(-1,dp(self || contactDetails ? 193 : 233)));
 
         TextView display=visualText(name,25,FG,true);
         display.setGravity(Gravity.CENTER);display.setSingleLine(true);
@@ -394,6 +399,11 @@ public class StoriesActivity extends Activity {
             handle.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);
             hp.topMargin=dp(3);body.addView(handle,hp);
+        }
+        if(!self && !contactDetails){
+            hero.setContentDescription("Подробнее о контакте");
+            hero.setOnClickListener(v->{contactDetails=true;renderFeed();reload();});
+            return;
         }
         if(contact.has("online")&&contact.optBoolean("online",false)){
             TextView online=visualText("●  Онлайн",13,0xFF27D486,false);
@@ -1036,18 +1046,31 @@ public class StoriesActivity extends Activity {
 
     private void shareContact(){
         String u=contact.optString("username","");
-        if(u.isEmpty()){Toast.makeText(this,"У контакта нет публичного имени",Toast.LENGTH_SHORT).show();return;}
+        String description=u.isEmpty()?contact.optString("display_name",personName):"@"+u;
         Intent send=new Intent(Intent.ACTION_SEND);send.setType("text/plain");
-        send.putExtra(Intent.EXTRA_TEXT,"Контакт Muwahid: @"+u);
+        send.putExtra(Intent.EXTRA_TEXT,"Контакт Muwahid: "+description);
         startActivity(Intent.createChooser(send,"Поделиться контактом"));
     }
     private void confirmBlock(){
+        if(blockPending || !contact.has("blocked_by_me"))return;
         boolean was=contact.optBoolean("blocked_by_me",false);
         new AlertDialog.Builder(this).setTitle(was?"Разблокировать контакт?":"Заблокировать контакт?")
           .setMessage(was?"Разрешить снова общаться с контактом?":"Контакт не сможет просматривать новые истории и обращаться к вам.")
-          .setNegativeButton("Отмена",null).setPositiveButton(was?"Разблокировать":"Заблокировать",(d,w)->backgroundWork(()->{
-              api.rpc("mw_contact_set_block",new JSONObject().put("p_chat",profileChatId).put("p_block",!was));reload();
-          })).show();
+          .setNegativeButton("Отмена",null).setPositiveButton(was?"Разблокировать":"Заблокировать",(d,w)->{
+              if(blockPending)return;
+              blockPending=true;
+              backgroundWork(()->{
+                  try{
+                      api.rpc("mw_contact_set_block",new JSONObject().put("p_chat",profileChatId).put("p_block",!was));
+                      ui.post(()->{
+                          if(destroyed)return;
+                          try{contact.put("blocked_by_me",!was);}catch(JSONException ignored){}
+                          renderFeed();
+                          reload();
+                      });
+                  }finally{ui.post(()->blockPending=false);}
+              });
+          }).show();
     }
     private void chooseStoryFile(){
         if(checkingStoryAudience)return;
