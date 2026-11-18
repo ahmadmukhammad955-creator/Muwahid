@@ -22,7 +22,7 @@ def one(path,old,new):
         raise RuntimeError(f"Expected exactly one occurrence of {old[:130]!r} in {path}, got {n}")
     path.write_text(s.replace(old,new),encoding="utf-8")
 
-for name in ("StoryMediaCodec.java","StoriesActivity.java","ProfilePhotoCodec.java"):
+for name in ("ProfileAttachments.java","StoryMediaCodec.java","StoriesActivity.java","ProfilePhotoCodec.java"):
     src=SOURCE/name
     if not src.is_file():raise RuntimeError(f"Missing real source {src}")
     (APP/name).write_bytes(src.read_bytes())
@@ -67,6 +67,17 @@ one(MAIN,
     'menuRow(card,"◯","Мой профиль",()->startActivityForResult(new Intent(this,StoriesActivity.class),REQ_CONTACT_STORIES));'
     'menuRow(card,"▧","Истории",()->startActivityForResult(new Intent(this,StoriesActivity.class).putExtra("archive",true),REQ_CONTACT_STORIES));'
     'menuRow(card,"⚙","Настройки аккаунта",this::showAccountSettings);')
+
+# Route both the menu card and the old profile tab to the same owner activity.
+one(MAIN,'profileCard.setOnClickListener(v->showAccountSettings());',
+    'profileCard.setOnClickListener(v->showMyProfile());')
+main_source=MAIN.read_text(encoding="utf-8")
+start=main_source.index("    private void showMyProfile(){")
+end=main_source.index("    private void showAccountSettings(){",start)
+one(MAIN,main_source[start:end],"""    private void showMyProfile(){
+        startActivityForResult(new Intent(this,StoriesActivity.class),REQ_CONTACT_STORIES);
+    }
+""")
 
 one(MAIN,
     'bar.addView(words,new LinearLayout.LayoutParams(0,dp(48),1));',
@@ -116,7 +127,7 @@ one(MAIN,needle,needle+'''if(requestCode==REQ_CONTACT_STORIES){
                 if(data.getBooleanExtra("open_profile_settings",false)){
                     showAccountSettings();return;
                 }
-                if(!notesMode&&"chat".equals(screen)){
+                if(!notesMode&&"chat".equals(screen)&&chatId!=null&&chatId.equals(data.getStringExtra("chat_id"))){
                     String mode=data.getStringExtra("contact_call_kind");
                     if("audio".equals(mode)||"video".equals(mode))startCall(mode);
                 }
@@ -164,11 +175,11 @@ one(TEST,
     'result.putString("stream", "MW_SMOKE_FAILED: " + e.getClass().getName() + ": " + String.valueOf(e.getMessage()) + "\\n" + android.util.Log.getStackTraceString(e));')
 
 # Separate signed update candidate. The 0.13.41 baseline must stay unchanged.
-# Only the assembled corrected app is marked as 0.13.45 (80) for a safe in-place update.
-one(Path("app/build.gradle"),"versionCode 76","versionCode 80")
-one(Path("app/build.gradle"),"versionName '0.13.41'","versionName '0.13.45'")
-one(TEST,'"0.13.41".equals(BuildConfig.VERSION_NAME)','"0.13.45".equals(BuildConfig.VERSION_NAME)')
-one(TEST,'MW_SMOKE_OK: 0.13.41 ','MW_SMOKE_OK: 0.13.45 ')
+# Only the assembled corrected app is marked as 0.13.46 (81) for a safe in-place update.
+one(Path("app/build.gradle"),"versionCode 76","versionCode 81")
+one(Path("app/build.gradle"),"versionName '0.13.41'","versionName '0.13.46'")
+one(TEST,'"0.13.41".equals(BuildConfig.VERSION_NAME)','"0.13.46".equals(BuildConfig.VERSION_NAME)')
+one(TEST,'MW_SMOKE_OK: 0.13.41 ','MW_SMOKE_OK: 0.13.46 ')
 
 
 assert 'StoriesActivity.class' in MAIN.read_text(encoding="utf-8")
@@ -177,3 +188,30 @@ assert 'uploadProfileImage(String path' in API.read_text(encoding="utf-8")
 assert 'uploadStory(String objectPath' in API.read_text(encoding="utf-8")
 assert 'android:exported="false"' in MANIFEST.read_text(encoding="utf-8")
 print("MW_NATIVE_STORIES_INTEGRATED: encrypted media, contact profile, story navigation, real call routes and security tests")
+
+# Instrumentation supplies an in-memory transport in its own APK only.
+one(API,"final class Api {","class Api {")
+(TEST.parent/"ProfileArchiveChecks.java").write_bytes((SOURCE/"ProfileArchiveChecks.java").read_bytes())
+one(TEST,"    private Activity activity;", """    private boolean checkingProfile;
+    @Override public Activity newActivity(ClassLoader loader,String name,Intent intent)
+            throws InstantiationException,IllegalAccessException,ClassNotFoundException{
+        if(checkingProfile && StoriesActivity.class.getName().equals(name))return ProfileArchiveChecks.fixture();
+        return super.newActivity(loader,name,intent);
+    }
+    private Activity activity;""")
+one(TEST,"            checkStoryMediaEncryption();","""            checkStoryMediaEncryption();
+            checkingProfile=true;
+            try{ProfileArchiveChecks.run(this);}finally{checkingProfile=false;}""")
+
+# Author envelopes use this account's own local identity; peer verification stays
+# mandatory for every recipient envelope and every direct message.
+marker="    private String sealText("
+one(APP/"CryptoBox.java",marker,"""    synchronized String encryptOwnStoryKey(String uid,String encoded) throws Exception {
+        return sealText(uid,"story:self",publicKey(uid),"",encoded);
+    }
+    synchronized String decryptOwnStoryKey(String uid,String envelope) throws Exception {
+        if(envelope==null||!envelope.startsWith(FORMAT))throw new SecurityException("Повреждён ключ истории");
+        return openText(uid,"story:self",publicKey(uid),"",envelope);
+    }
+
+"""+marker)

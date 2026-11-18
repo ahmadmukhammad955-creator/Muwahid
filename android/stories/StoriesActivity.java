@@ -16,7 +16,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /** Real contact profile and 24-hour E2EE stories. No WebView or external media player. */
-public final class StoriesActivity extends Activity {
+public class StoriesActivity extends Activity {
     private static final int PICK_STORY=6991;
     private static final int PICK_AVATAR=6992,PICK_COVER=6993;
     private static final int MAX_BYTES=StoryMediaCodec.MAX_CIPHER_BYTES-StoryMediaCodec.HEADER_BYTES;
@@ -65,9 +65,11 @@ public final class StoriesActivity extends Activity {
     private boolean destroyed=false;
     private boolean checkingStoryAudience=false;
 
+    Api profileApi(){return new Api(new SecureStore(this));}
+
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
-        api=new Api(new SecureStore(this));crypto=new CryptoBox(this);
+        api=profileApi();crypto=new CryptoBox(this);
         if(!api.signedIn()){Toast.makeText(this,"Войдите в аккаунт Muwahid",Toast.LENGTH_LONG).show();finish();return;}
         Intent in=getIntent();
         profileChatId=in.getStringExtra("chat_id");
@@ -77,6 +79,7 @@ public final class StoriesActivity extends Activity {
         if(personId==null)personId="";
         if(personName==null)personName="";
         archiveScreen=in.getBooleanExtra("archive",false);
+        archiveMode=in.getBooleanExtra("expired",false)&&archiveScreen;
         getWindow().setStatusBarColor(Color.rgb(8,16,29));
         getWindow().setNavigationBarColor(Color.rgb(8,16,29));
         renderFeed();
@@ -196,7 +199,7 @@ public final class StoriesActivity extends Activity {
         return t;
     }
     private void openArchiveScreen(){
-        archiveScreen=true; archiveMode=false; archiveOffset=0;archiveSavedScroll=-1;
+        archiveScreen=true; archiveMode=true; archiveOffset=0;archiveSavedScroll=-1;
         feedRequestSerial++;
         archiveRequestSerial++;archiveLoading=false;archiveHasMore=false;
         feed=new JSONArray();renderFeed();reload();
@@ -209,6 +212,7 @@ public final class StoriesActivity extends Activity {
     }
     private void returnFromScreen(){
         if(archiveScreen){
+            if(getIntent().getBooleanExtra("archive",false)){finish();return;}
             archiveScreen=false;archiveMode=false;feedRequestSerial++;archiveRequestSerial++;
             feed=new JSONArray();renderFeed();reload();
         }else finish();
@@ -221,6 +225,7 @@ public final class StoriesActivity extends Activity {
     private void openProfileMenu(View anchor){
         PopupMenu popup=new PopupMenu(this,anchor);
         popup.getMenu().add(0,1,0,"Обновить");
+        if(!archiveScreen)popup.getMenu().add(0,6,0,"Мой архив историй");
         if(!archiveScreen&&profileChatId.isEmpty()){
             popup.getMenu().add(0,4,1,"Изменить фото профиля");
             popup.getMenu().add(0,5,2,"Изменить обложку");
@@ -232,6 +237,11 @@ public final class StoriesActivity extends Activity {
             }
         }
         popup.setOnMenuItemClickListener(item->{
+            if(item.getItemId()==6){
+                if(profileChatId.isEmpty())openArchiveScreen();
+                else startActivity(new Intent(this,StoriesActivity.class).putExtra("archive",true).putExtra("expired",true));
+                return true;
+            }
             if(item.getItemId()==1){reload();return true;}
             if(item.getItemId()==4){chooseProfilePhoto("avatar");return true;}
             if(item.getItemId()==5){chooseProfilePhoto("cover");return true;}
@@ -258,6 +268,9 @@ public final class StoriesActivity extends Activity {
         LinearLayout.LayoutParams titleP=new LinearLayout.LayoutParams(0,dp(46),1);
         titleP.leftMargin=dp(8);bar.addView(title,titleP);
         if(!archiveScreen&&profileChatId.isEmpty()){
+            TextView qr=simpleIcon("▦","QR-код профиля");
+            bar.addView(qr,new LinearLayout.LayoutParams(dp(44),dp(46)));
+            qr.setOnClickListener(v->showProfileQr());
             TextView edit=simpleIcon("✎","Изменить профиль");
             bar.addView(edit,new LinearLayout.LayoutParams(dp(42),dp(46)));
             edit.setOnClickListener(v->editOwnProfile());
@@ -279,6 +292,10 @@ public final class StoriesActivity extends Activity {
     }
     private void renderContact(LinearLayout body){
         if(contact.length()==0){
+            if(profileChatId.isEmpty()){
+                TextView archive=button("Архив историй");
+                body.addView(archive);archive.setOnClickListener(v->openArchiveScreen());
+            }
             TextView loading=visualText("Загрузка профиля…",15,SECONDARY,false);
             loading.setPadding(dp(14),dp(24),dp(14),dp(24));body.addView(loading);
             return;
@@ -364,7 +381,7 @@ public final class StoriesActivity extends Activity {
         }
         String avatarPath=contact.optString("avatar_path","");
         if(!avatarPath.isEmpty())loadProfilePhoto(avatarPath,avatarPhoto);
-        body.addView(hero,new LinearLayout.LayoutParams(-1,dp(233)));
+        body.addView(hero,new LinearLayout.LayoutParams(-1,dp(193)));
 
         TextView display=visualText(name,25,FG,true);
         display.setGravity(Gravity.CENTER);display.setSingleLine(true);
@@ -384,46 +401,43 @@ public final class StoriesActivity extends Activity {
             LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2);
             sp.topMargin=dp(8);body.addView(online,sp);
         }
-        // Replace the previous decorative chat/call/video tiles with real photo editing.
-        // Contact profiles must never offer photo edits to another person's account.
+        LinearLayout actions=horizontal();
+        LinearLayout.LayoutParams actionsP=new LinearLayout.LayoutParams(-1,-2);
+        actionsP.topMargin=dp(14);
+        body.addView(actions,actionsP);
         if(self){
-            LinearLayout photoActions=horizontal();
-            LinearLayout.LayoutParams photoActionsP=new LinearLayout.LayoutParams(-1,dp(58));
-            photoActionsP.topMargin=dp(16);
-            body.addView(photoActions,photoActionsP);
-
-            TextView changeAvatarButton=button("Изменить аватар");
-            changeAvatarButton.setTextSize(14);
-            LinearLayout.LayoutParams avatarButtonP=new LinearLayout.LayoutParams(0,dp(54),1);
-            avatarButtonP.rightMargin=dp(5);
-            photoActions.addView(changeAvatarButton,avatarButtonP);
-            changeAvatarButton.setOnClickListener(v->chooseProfilePhoto("avatar"));
-
-            TextView changeCoverButton=button("Изменить обложку");
-            changeCoverButton.setTextSize(14);
-            LinearLayout.LayoutParams coverButtonP=new LinearLayout.LayoutParams(0,dp(54),1);
-            coverButtonP.leftMargin=dp(5);
-            photoActions.addView(changeCoverButton,coverButtonP);
-            changeCoverButton.setOnClickListener(v->chooseProfilePhoto("cover"));
+            addQuickAction(actions,"chat","Чат",()->chooseProfileChat("chat"),true);
+            addQuickAction(actions,"call","Звонок",()->chooseProfileChat("audio"),true);
+            addQuickAction(actions,"video","Видео",()->chooseProfileChat("video"),true);
+        }else{
+            boolean available=!contact.optBoolean("blocked_by_me",false);
+            addQuickAction(actions,"chat","Чат",this::finish,true);
+            addQuickAction(actions,"call","Звонок",()->startContactCall("audio"),available);
+            addQuickAction(actions,"video","Видео",()->startContactCall("video"),available);
         }
+        addQuickAction(actions,"share","Поделиться",this::shareContact,true);
         // Show real, actionable stories, not an empty decorative placeholder.
         // Owners can publish a new story or open their private archive;
         // contacts see this section only when the server returned visible stories.
-        if(self||feed.length()>0){
+        {
             LinearLayout storyHeading=horizontal();
             LinearLayout.LayoutParams storyHeadingP=new LinearLayout.LayoutParams(-1,dp(46));
             storyHeadingP.topMargin=dp(14);
             body.addView(storyHeading,storyHeadingP);
             TextView storiesLabel=visualText("Истории",20,FG,true);
             storyHeading.addView(storiesLabel,new LinearLayout.LayoutParams(0,-2,1));
-            if(self){
-                TextView archiveLink=visualText("◷  Архив",16,SECONDARY,false);
+            {
+                TextView archiveLink=visualText(self?"◷  Архив":"Мой архив",16,SECONDARY,false);
                 archiveLink.setGravity(Gravity.CENTER_VERTICAL|Gravity.RIGHT);
                 archiveLink.setContentDescription("Открыть архив историй");
                 storyHeading.addView(archiveLink,new LinearLayout.LayoutParams(dp(96),dp(44)));
-                archiveLink.setOnClickListener(v->openArchiveScreen());
+                archiveLink.setOnClickListener(v->{
+                    if(self)openArchiveScreen();
+                    else startActivity(new Intent(this,StoriesActivity.class).putExtra("archive",true).putExtra("expired",true));
+                });
             }
-            renderStoryStrip(body,self);
+            if(self||feed.length()>0)renderStoryStrip(body,self);
+            else body.addView(visualText("У контакта пока нет доступных историй",14,SECONDARY,false));
         }
         // Use only actual profile-pinned, encrypted photographs in the gallery.
         renderProfileGallery(body);
@@ -439,10 +453,86 @@ public final class StoriesActivity extends Activity {
         }
         // Display only actions backed by an actual Android or server operation.
         if(self){
-            addInfoRow(details,"✎","Изменить профиль","",this::editOwnProfile);
-            addInfoRow(details,"◇","Конфиденциальность","",this::openAccountSettings);
+            addInfoRow(details,"▧","Медиа, файлы и ссылки","Выбрать переписку",()->chooseProfileChat("files"));
+            addInfoRow(details,"♧","Мои контакты","",()->showProfileContacts(true));
+            addInfoRow(details,"◇","Конфиденциальность","Видимость и блокировка",()->startActivity(new Intent(this,PrivacyActivity.class)));
             addInfoRow(details,"⚙","Настройки профиля","",this::openAccountSettings);
         }
+        else{
+            addInfoRow(details,"▧","Медиа, файлы и ссылки","Из этой переписки",()->openAttachments(profileChatId));
+            addInfoRow(details,"♧","Общие контакты","",()->showProfileContacts(false));
+            addInfoRow(details,"◇","Конфиденциальность",contact.optBoolean("blocked_by_me",false)
+                ?"Разблокировать контакт":"Заблокировать контакт",this::confirmBlock);
+        }
+    }
+
+    private void showProfileQr(){
+        try{
+            ImageView code=new ImageView(this);
+            code.setImageBitmap(ProfileQr.render(api.uid(),dp(248)));
+            code.setContentDescription("QR-код моего профиля");
+            new AlertDialog.Builder(this).setTitle("Мой QR-код").setView(code)
+                .setPositiveButton("Закрыть",null).show();
+        }catch(Exception e){error(e);}
+    }
+
+    private void openAttachments(String chat){
+        new ProfileAttachments(this,api,crypto,io,chat).load(null);
+    }
+
+    private void chooseProfileChat(String action){
+        backgroundWork(()->{
+            JSONArray chats=(JSONArray)api.rpc("mw_chat_list",new JSONObject());
+            String[] names=new String[chats.length()];
+            for(int i=0;i<names.length;i++)names[i]=chats.getJSONObject(i).getString("display_name");
+            ui.post(()->{
+                if(destroyed||isFinishing())return;
+                AlertDialog.Builder dialog=new AlertDialog.Builder(this).setTitle("Выберите переписку");
+                if(names.length==0)dialog.setMessage("Пока нет личных чатов.");
+                else dialog.setItems(names,(d,i)->{
+                    JSONObject selected=chats.optJSONObject(i);
+                    String id=selected.optString("id");
+                    if("files".equals(action)){openAttachments(id);return;}
+                    if("chat".equals(action)){
+                        Intent chat=new Intent(this,MainActivity.class)
+                            .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT|Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            .putExtra("open_chat_id",id).putExtra("open_chat_name",names[i]);
+                        startActivity(chat);finish();return;
+                    }
+                    backgroundWork(()->{
+                        Object peer=api.rpc("mw_e2ee_peer_key",new JSONObject().put("p_chat",id));
+                        if(!(peer instanceof String)||!crypto.isPeerVerified(api.uid(),id,(String)peer))
+                            throw new SecurityException("Сначала сверьте код безопасности в меню этого чата.");
+                        ui.post(()->{
+                            if(!destroyed&&!isFinishing())startActivity(new Intent(this,CallActivity.class)
+                                .putExtra("chat_id",id).putExtra("peer_name",names[i])
+                                .putExtra("incoming",false).putExtra("kind",action));
+                        });
+                    });
+                });
+                dialog.setNegativeButton("Закрыть",null).show();
+            });
+        });
+    }
+
+    private void showProfileContacts(boolean own){
+        backgroundWork(()->{
+            JSONArray people=(JSONArray)(own
+                ?api.rpc("mw_privacy_people",new JSONObject().put("p_list","contacts"))
+                :api.rpc("mw_profile_mutual_contacts",new JSONObject().put("p_chat",profileChatId)));
+            String[] names=new String[people.length()];
+            for(int i=0;i<names.length;i++){
+                JSONObject person=people.getJSONObject(i);
+                names[i]=person.getString("display_name")+" · @"+person.getString("username");
+            }
+            ui.post(()->{
+                if(destroyed||isFinishing())return;
+                AlertDialog.Builder list=new AlertDialog.Builder(this).setTitle(own?"Мои контакты":"Общие контакты");
+                if(names.length==0)list.setMessage(own?"Сохранённых контактов пока нет.":"Общих подтверждённых контактов нет.");
+                else list.setItems(names,null);
+                list.setPositiveButton("Закрыть",null).show();
+            });
+        });
     }
     private void chooseProfilePhoto(String kind){
         if(destroyed||archiveScreen||
@@ -638,7 +728,7 @@ public final class StoriesActivity extends Activity {
         finish();
     }
     private void startContactCall(String kind){
-        Intent result=new Intent();result.putExtra("contact_call_kind",kind);
+        Intent result=new Intent();result.putExtra("contact_call_kind",kind);result.putExtra("chat_id",profileChatId);
         setResult(RESULT_OK,result);finish();
     }
     private void addQuickAction(LinearLayout parent,String symbol,String label,Runnable action,boolean enabled){
@@ -803,15 +893,11 @@ public final class StoriesActivity extends Activity {
     }
 
     private String storyAge(JSONObject story){
-        String ends=story.optString("expires_at","");
-        if(!ends.isEmpty()&&!archiveMode)try{
-            long millis=java.time.Instant.parse(ends).toEpochMilli()-System.currentTimeMillis();
-            if(millis>0)return Math.max(1,(millis+3599999L)/3600000L)+" ч";
-        }catch(Exception ignored){}
         String created=story.optString("created_at","");
         if(!created.isEmpty())try{
             long age=Math.max(0,System.currentTimeMillis()-java.time.Instant.parse(created).toEpochMilli());
-            if(age<86400000L)return Math.max(1,age/3600000L)+" ч";
+            if(age<3600000L)return Math.max(1,age/60000L)+" мин";
+            if(age<86400000L)return age/3600000L+" ч";
             return Math.max(1,age/86400000L)+" д";
         }catch(Exception ignored){}
         return "";
@@ -835,17 +921,17 @@ public final class StoriesActivity extends Activity {
         String age=storyAge(story);
         if(!age.isEmpty()){
             TextView elapsed=visualText(age,12,FG,true);
-            elapsed.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
-            FrameLayout.LayoutParams ep=new FrameLayout.LayoutParams(-1,dp(26),Gravity.TOP);
+            elapsed.setGravity(archiveScreen?Gravity.RIGHT|Gravity.CENTER_VERTICAL:Gravity.CENTER);
+            FrameLayout.LayoutParams ep=new FrameLayout.LayoutParams(-1,dp(26),archiveScreen?Gravity.TOP:Gravity.BOTTOM);
             ep.setMargins(dp(5),dp(1),dp(8),0);tile.addView(elapsed,ep);
         }
         Object views=story.opt("view_count");
         if(!(views instanceof Number))views=story.opt("views_count");
-        if(views instanceof Number){
+        if(archiveScreen && views instanceof Number){
             TextView count=visualText("◉ "+views.toString(),12,FG,true);
             FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(-1,dp(24),Gravity.BOTTOM);
             cp.setMargins(dp(8),0,0,dp(4));tile.addView(count,cp);
-        }else if("video".equals(story.optString("media_kind"))){
+        }else if(archiveScreen && "video".equals(story.optString("media_kind"))){
             TextView play=visualText("▶",15,FG,true);
             FrameLayout.LayoutParams pp=new FrameLayout.LayoutParams(-2,dp(23),Gravity.BOTTOM|Gravity.LEFT);
             pp.setMargins(dp(7),0,0,dp(4));tile.addView(play,pp);
@@ -870,7 +956,7 @@ public final class StoriesActivity extends Activity {
         LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-1,-2);
         gp.topMargin=dp(19);
         if(feed.length()==0){
-            TextView empty=visualText(archiveLoading?"Загрузка…":"Историй пока нет",15,SECONDARY,false);
+            TextView empty=visualText(archiveLoading?"Загрузка…":archiveMode?"Архив пока пуст":"Историй пока нет",15,SECONDARY,false);
             empty.setGravity(Gravity.CENTER);empty.setPadding(0,dp(42),0,dp(40));
             body.addView(empty,gp);
         }else{
@@ -1067,9 +1153,7 @@ public final class StoriesActivity extends Activity {
         String uid=api.uid();
         byte[] mediaKey=StoryMediaCodec.newKey();
         String encoded=android.util.Base64.encodeToString(mediaKey,android.util.Base64.NO_WRAP);
-        String ownPublic=crypto.publicKey(uid);
-        crypto.verifyPeer(uid,"story:self",ownPublic);
-        String myEnvelope=crypto.encryptText(uid,"story:self",ownPublic,encoded);
+        String myEnvelope=crypto.encryptOwnStoryKey(uid,encoded);
         JSONArray grants=new JSONArray();
         Set<String> added=new HashSet<>();
         for(int i=0;i<chats.length()&&grants.length()<200;i++){
@@ -1171,17 +1255,16 @@ public final class StoriesActivity extends Activity {
     private byte[] readDecryptedMedia(JSONObject item) throws Exception{
         byte[] ciphertext=api.downloadStory(item.getString("media_path"));
         String owner=item.getString("owner_id"),uid=api.uid(),chat=item.optString("chat_id","");
-        String otherKey,scope;
-        if(owner.equals(uid)){otherKey=crypto.publicKey(uid);scope="story:self";crypto.verifyPeer(uid,scope,otherKey);}
+        String encoded;
+        if(owner.equals(uid)){encoded=crypto.decryptOwnStoryKey(uid,item.getString("key_envelope"));}
         else{
             if(chat.isEmpty())throw new SecurityException("Отсутствует чат с автором истории");
             Object pub=api.rpc("mw_e2ee_peer_key",new JSONObject().put("p_chat",chat));
-            otherKey=pub instanceof String?(String)pub:"";
+            String otherKey=pub instanceof String?(String)pub:"";
             if(otherKey.isEmpty()||!crypto.isPeerVerified(uid,chat,otherKey))
                 throw new SecurityException("Проверьте ключ собеседника, чтобы открыть историю");
-            scope=chat;
+            encoded=crypto.decryptText(uid,chat,otherKey,item.getString("key_envelope"));
         }
-        String encoded=crypto.decryptText(uid,scope,otherKey,item.getString("key_envelope"));
         byte[] key=android.util.Base64.decode(encoded,android.util.Base64.NO_WRAP);
         try{return StoryMediaCodec.decrypt(ciphertext,key);}
         finally{Arrays.fill(key,(byte)0);Arrays.fill(ciphertext,(byte)0);}
@@ -1196,7 +1279,7 @@ public final class StoriesActivity extends Activity {
         Bitmap bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.length);
         if(bitmap==null){viewerStatus.setText("Не удалось открыть фото");mediaLayer.addView(viewerStatus);return;}
         ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        image.setImageBitmap(bitmap);mediaLayer.addView(image,new FrameLayout.LayoutParams(-1,-1));
+        image.setContentDescription("Фотография истории");image.setImageBitmap(bitmap);mediaLayer.addView(image,new FrameLayout.LayoutParams(-1,-1));
         installTouchNav(image);
         paused=false;imageRemaining=7500;imageEndsAt=SystemClock.uptimeMillis()+imageRemaining;
         imageAdvance=()->{if(viewing&&!paused)next();};ui.postDelayed(imageAdvance,imageRemaining);
