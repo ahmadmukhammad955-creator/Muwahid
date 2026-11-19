@@ -1,3 +1,7 @@
-# Muwahid Fresh — independent native Android project
+# Muwahid Fresh Native
 
-This branch contains a completely new Android project based on the supplied profile and archive screenshots. It does not use any legacy Muwahid code. `Muwahid_FreshNative_Project.zip` holds the new app source and isolated backend SQL schema. GitHub Actions builds an installable debug APK. A successful build does not certify two-device calling or production QA. Voice and video calling have not been implemented and are labelled unavailable in the app.
+Independent Android Java project, not based on prior Muwahid source. Native profile, stories, archive, messaging, WebRTC signaling and experimental audio/video calling. Profile-media privacy and story access use Supabase row-level security. 
+
+**Status:** Android 15 login-screen launch smoke tested in preceding revision. This revision includes story privacy/pinning/deletion and QR profile deep links and must pass new CI. WebRTC on two physical phones, real account authorization, media uploads and calling over strict NAT are **not validated**. A STUN-only configuration is not reliable across all mobile networks without TURN. No false demonstration data.
+
+Debug APK is ephemeral signed. Stable signing uses repo-protected `MUWAHID_KEYSTORE_*` secrets; new package id `com.muwahid.fresh` differs from legacy app.

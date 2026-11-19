@@ -38,6 +38,35 @@ jobs:
           path: fresh/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 15
+      - name: Prepare stable signing for separate fresh application
+        env:
+          MUWAHID_KEYSTORE_B64: ${{ secrets.MUWAHID_KEYSTORE_B64 }}
+          MUWAHID_KEYSTORE_PASSWORD: ${{ secrets.MUWAHID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "${MUWAHID_KEYSTORE_B64:-}" ] && [ -n "${MUWAHID_KEYSTORE_PASSWORD:-}" ]; then
+            printf '%s' "$MUWAHID_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/muwahid-signing.jks"
+            keytool -list -keystore "$RUNNER_TEMP/muwahid-signing.jks" -storepass "$MUWAHID_KEYSTORE_PASSWORD" -alias muwahid >/dev/null
+            echo "MUWAHID_KEYSTORE_FILE=$RUNNER_TEMP/muwahid-signing.jks" >> "$GITHUB_ENV"
+            echo "MUWAHID_STABLE_SIGNING=true" >> "$GITHUB_ENV"
+          else
+            echo "MUWAHID_STABLE_SIGNING=false" >> "$GITHUB_ENV"
+          fi
+      - name: Build verified signed installable APK
+        if: env.MUWAHID_STABLE_SIGNING == 'true'
+        env:
+          MUWAHID_KEYSTORE_PASSWORD: ${{ secrets.MUWAHID_KEYSTORE_PASSWORD }}
+        run: |
+          cd fresh
+          gradle --no-daemon assembleRelease
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+      - name: Upload signed APK as stable update
+        if: env.MUWAHID_STABLE_SIGNING == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Muwahid-Fresh-SIGNED-APK
+          path: fresh/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
       - name: Enable KVM for Android emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
