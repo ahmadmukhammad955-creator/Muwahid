@@ -21,11 +21,16 @@ jobs:
           gradle-version: '8.9'
       - name: Unpack entirely new native source
         run: unzip -q Muwahid_FreshNative_Project.zip -d fresh
+      - name: Check Maven mirror accessibility
+        run: |
+          curl -IL --max-time 15 -sS -o /dev/null -w "MAVEN_CENTRAL_HTTP=%{http_code}\n" https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk8/1.9.20/kotlin-stdlib-jdk8-1.9.20.pom
+          curl -IL --max-time 15 -sS -o /dev/null -w "MAVEN_REPO1_HTTP=%{http_code}\n" https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk8/1.9.20/kotlin-stdlib-jdk8-1.9.20.pom
+          curl -IL --max-time 15 -sS -o /dev/null -w "MAVEN_GOOGLE_HTTP=%{http_code}\n" https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/8.7.3/gradle-8.7.3.pom
       - name: Compile Android 35
         run: |
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
           cd fresh
-          gradle --no-daemon --stacktrace assembleDebug
+          gradle --no-daemon --refresh-dependencies --stacktrace assembleDebug
       - name: Upload installable Android APK
         uses: actions/upload-artifact@v4
         with:
