@@ -82,6 +82,53 @@ public final class ProfileArchiveChecks {
         throw new AssertionError("Profile/archive view missing: "+text);
     }
 
+    private static void assertSelected(Instrumentation runner,Activity screen,String tab){
+        runner.runOnMainSync(()->{
+            View view=match(screen.getWindow().getDecorView(),tab);
+            if(view==null||!view.isSelected())
+                throw new AssertionError("Archive tab not selected: "+tab);
+        });
+    }
+
+    private static boolean hasThreeColumnGrid(View root){
+        if(root instanceof android.widget.GridLayout
+            && ((android.widget.GridLayout)root).getColumnCount()==3)return true;
+        if(root instanceof ViewGroup){
+            ViewGroup group=(ViewGroup)root;
+            for(int i=0;i<group.getChildCount();i++)
+                if(hasThreeColumnGrid(group.getChildAt(i)))return true;
+        }
+        return false;
+    }
+    private static void assertThreeColumnGrid(Instrumentation runner,Activity screen){
+        runner.runOnMainSync(()->{
+            if(!hasThreeColumnGrid(screen.getWindow().getDecorView()))
+                throw new AssertionError("Archive is not rendered in three columns");
+        });
+    }
+
+    /** Saves fixture-only UI screenshots to app-specific storage for CI artifacts. */
+    private static void capture(Instrumentation runner,Activity screen,String filename){
+        runner.runOnMainSync(()->{
+            View root=screen.getWindow().getDecorView();
+            if(root.getWidth()<1||root.getHeight()<1)
+                throw new AssertionError("Screenshot has an empty viewport");
+            Bitmap bitmap=Bitmap.createBitmap(root.getWidth(),root.getHeight(),Bitmap.Config.ARGB_8888);
+            try{
+                root.draw(new android.graphics.Canvas(bitmap));
+                java.io.File folder=screen.getExternalFilesDir(null);
+                if(folder==null)throw new AssertionError("No app-specific screenshot directory");
+                try(java.io.FileOutputStream stream=new java.io.FileOutputStream(
+                        new java.io.File(folder,filename))){
+                    if(!bitmap.compress(Bitmap.CompressFormat.PNG,100,stream))
+                        throw new AssertionError("Could not encode "+filename);
+                }
+            }catch(java.io.IOException error){
+                throw new AssertionError("Could not save "+filename,error);
+            }finally{bitmap.recycle();}
+        });
+    }
+
     static void run(Instrumentation runner){
         Activity profile=runner.startActivitySync(new Intent(runner.getTargetContext(),StoriesActivity.class)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -89,15 +136,26 @@ public final class ProfileArchiveChecks {
             find(runner,profile,"Проверка профиля",false);
             for(String action:new String[]{"Чат","Звонок","Видео","Поделиться","QR-код профиля"})
                 find(runner,profile,action,false);
+            capture(runner,profile,"profile_screen.png");
             find(runner,profile,"Открыть архив историй",true);
+            find(runner,profile,"Мои истории",false);
+            assertSelected(runner,profile,"Мои истории");
+            find(runner,profile,"Историй пока нет",false);
+            capture(runner,profile,"stories_my_stories.png");
+            find(runner,profile,"Архив",true);
             find(runner,profile,"◉ 7",false);
+            assertSelected(runner,profile,"Архив");
+            assertThreeColumnGrid(runner,profile);
+            capture(runner,profile,"stories_archive_screen.png");
             find(runner,profile,"Открыть историю 1",true);
             find(runner,profile,"Фотография истории",false);
             runner.runOnMainSync(profile::onBackPressed);
-            find(runner,profile,"▣  Мои истории",true);
+            find(runner,profile,"Мои истории",true);
+            assertSelected(runner,profile,"Мои истории");
             find(runner,profile,"Историй пока нет",false);
-            find(runner,profile,"▢  Архив",true);
+            find(runner,profile,"Архив",true);
             find(runner,profile,"◉ 7",false);
+            assertThreeColumnGrid(runner,profile);
         }finally{runner.runOnMainSync(profile::finish);runner.waitForIdleSync();}
     }
 }

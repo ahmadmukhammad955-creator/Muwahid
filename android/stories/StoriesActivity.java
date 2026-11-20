@@ -199,7 +199,9 @@ public class StoriesActivity extends Activity {
         return t;
     }
     private void openArchiveScreen(){
-        archiveScreen=true; archiveMode=true; archiveOffset=0;archiveSavedScroll=-1;
+        // The reference archive opens on the first tab, “Мои истории”.
+        // Expired stories remain available via the separate “Архив” tab.
+        archiveScreen=true; archiveMode=false; archiveOffset=0;archiveSavedScroll=-1;
         feedRequestSerial++;
         archiveRequestSerial++;archiveLoading=false;archiveHasMore=false;
         feed=new JSONArray();renderFeed();reload();
@@ -949,6 +951,8 @@ public class StoriesActivity extends Activity {
             TextView tab=visualText(i==0?"▣  Мои истории":"▢  Архив",15,
                 archiveMode==archived?0xFF60D2FF:FG,archiveMode==archived);
             tab.setGravity(Gravity.CENTER);
+            tab.setContentDescription(archived?"Архив":"Мои истории");
+            tab.setSelected(archiveMode==archived);
             if(archiveMode==archived)tab.setBackground(rounded(0xFF104C6D,15));
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);
             tabs.addView(tab,p);tab.setOnClickListener(v->selectArchiveTab(archived));
