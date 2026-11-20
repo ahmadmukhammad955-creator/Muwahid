@@ -82,6 +82,31 @@ public final class ProfileArchiveChecks {
         throw new AssertionError("Profile/archive view missing: "+text);
     }
 
+    private static void assertSelected(Instrumentation runner,Activity screen,String tab){
+        runner.runOnMainSync(()->{
+            View view=match(screen.getWindow().getDecorView(),tab);
+            if(view==null||!view.isSelected())
+                throw new AssertionError("Archive tab not selected: "+tab);
+        });
+    }
+
+    private static boolean hasThreeColumnGrid(View root){
+        if(root instanceof android.widget.GridLayout
+            && ((android.widget.GridLayout)root).getColumnCount()==3)return true;
+        if(root instanceof ViewGroup){
+            ViewGroup group=(ViewGroup)root;
+            for(int i=0;i<group.getChildCount();i++)
+                if(hasThreeColumnGrid(group.getChildAt(i)))return true;
+        }
+        return false;
+    }
+    private static void assertThreeColumnGrid(Instrumentation runner,Activity screen){
+        runner.runOnMainSync(()->{
+            if(!hasThreeColumnGrid(screen.getWindow().getDecorView()))
+                throw new AssertionError("Archive is not rendered in three columns");
+        });
+    }
+
     static void run(Instrumentation runner){
         Activity profile=runner.startActivitySync(new Intent(runner.getTargetContext(),StoriesActivity.class)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -90,14 +115,22 @@ public final class ProfileArchiveChecks {
             for(String action:new String[]{"Чат","Звонок","Видео","Поделиться","QR-код профиля"})
                 find(runner,profile,action,false);
             find(runner,profile,"Открыть архив историй",true);
+            find(runner,profile,"Мои истории",false);
+            assertSelected(runner,profile,"Мои истории");
+            find(runner,profile,"Историй пока нет",false);
+            find(runner,profile,"Архив",true);
             find(runner,profile,"◉ 7",false);
+            assertSelected(runner,profile,"Архив");
+            assertThreeColumnGrid(runner,profile);
             find(runner,profile,"Открыть историю 1",true);
             find(runner,profile,"Фотография истории",false);
             runner.runOnMainSync(profile::onBackPressed);
-            find(runner,profile,"▣  Мои истории",true);
+            find(runner,profile,"Мои истории",true);
+            assertSelected(runner,profile,"Мои истории");
             find(runner,profile,"Историй пока нет",false);
-            find(runner,profile,"▢  Архив",true);
+            find(runner,profile,"Архив",true);
             find(runner,profile,"◉ 7",false);
+            assertThreeColumnGrid(runner,profile);
         }finally{runner.runOnMainSync(profile::finish);runner.waitForIdleSync();}
     }
 }
